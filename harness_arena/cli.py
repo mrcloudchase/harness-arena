@@ -20,6 +20,7 @@ from .catalog import ENDPOINTS, Catalog
 from .exercise import Exerciser
 from .judging import Judging
 from .models import Judge, Panel
+from .relay import Relay, gateway
 from .report import index, render
 from .scrub import Scrubber, harness_terms, model_terms
 from .store import ROOT, Mode, RunDir
@@ -40,17 +41,19 @@ def parser() -> argparse.ArgumentParser:
     shared.add_argument("--run-id")
     shared.add_argument("--judges", default=JUDGES, help="provider/model,provider/model: the model-judge panel")
     shared.add_argument("--judge-harness", default="claude-code", help="the held-out harness for harness judges")
-    sub.add_parser("compare", parents=[shared]).add_argument("--model", required=True, help="provider/model")
+    c = sub.add_parser("compare", parents=[shared])
+    c.add_argument("--model", required=True, help="provider/model")
+    c.add_argument("--no-relay", action="store_true", help="don't record and check each call's model")
     sub.add_parser("defaults", parents=[shared])
     r = sub.add_parser("report")
     r.add_argument("mode", choices=["compare", "defaults"])
     r.add_argument("benchmark")
     r.add_argument("run_id", nargs="?")
     r.add_argument("--model", default="")
-    c = sub.add_parser("calibrate")
-    c.add_argument("benchmark")
-    c.add_argument("--judges", default=JUDGES)
-    c.add_argument("--judge-harness", default="claude-code")
+    k = sub.add_parser("calibrate")
+    k.add_argument("benchmark")
+    k.add_argument("--judges", default=JUDGES)
+    k.add_argument("--judge-harness", default="claude-code")
     b = sub.add_parser("blindcheck")
     b.add_argument("run_dir", type=Path)
     b.add_argument("--judges", default=JUDGES)
@@ -95,8 +98,9 @@ async def contest(args, mode: Mode, catalog: Catalog) -> None:
     tasks = [t for t in tasks if not bench.leaks(t)]
     kinds = {j.kind for t in tasks for j in bench.judges(t)}
 
-    turns = Turns(docker_runtime(ROOT / "results" / "docker-logs"))
-    arena = Arena(catalog, turns, mode, run, args.workers)
+    relay = Relay(gateway()) if mode.kind == "compare" and not args.no_relay else None
+    turns = Turns(docker_runtime(ROOT / "results" / "docker-logs", (relay.certs,) if relay else ()))
+    arena = Arena(catalog, turns, mode, run, args.workers, relay)
     probe = await arena.probe(config["harnesses"])
     names = [n for n, why in probe.items() if not why and n in config["harnesses"]]
     judge_models = config["judges"].split(",")

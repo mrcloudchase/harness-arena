@@ -1,0 +1,42 @@
+[
+ {
+  "task": "slugify",
+  "dir": "slugify-good",
+  "human": 0.9
+ },
+ {
+  "task": "slugify",
+  "dir": "slugify-mid",
+  "human": 0.5
+ },
+ {
+  "task": "slugify",
+  "dir": "slugify-bad",
+  "human": 0.1
+ },
+ {
+  "task": "bucket",
+  "dir": "bucket-good",
+  "human": 0.9
+ },
+ {
+  "task": "bucket",
+  "dir": "bucket-mid",
+  "human": 0.55
+ },
+ {
+  "task": "bucket",
+  "dir": "bucket-bad",
+  "human": 0.15
+ },
+ {
+  "task": "csvstat",
+  "dir": "csvstat-good",
+  "human": 0.9
+ },
+ {
+  "task": "csvstat",
+  "dir": "csvstat-bad",
+  "human": 0.1
+ }
+]

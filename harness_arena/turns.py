@@ -21,10 +21,10 @@ REFUSAL = re.compile(r"\b(401|403|429|529|unauthori[sz]ed|rate.?limit|quota|insu
 RuntimeFor = Callable[[Target], Runtime]
 
 
-def docker_runtime(logs: Path) -> RuntimeFor:
-    """Each run in the default sandbox, reaching only its provider."""
+def docker_runtime(logs: Path, mounts: tuple[Path, ...] = ()) -> RuntimeFor:
+    """Each run in the default sandbox, reaching only its provider (or the relay in front of it)."""
     engine = Docker(logs)
-    return lambda t: DockerRuntime(engine, DEFAULT_SANDBOX, egress=[t.provider.host], mounts=[t.folder])
+    return lambda t: DockerRuntime(engine, DEFAULT_SANDBOX, egress=[t.provider.host], mounts=[t.folder, *mounts])
 
 
 @dataclass(frozen=True)
