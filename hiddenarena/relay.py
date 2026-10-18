@@ -37,16 +37,19 @@ def gateway() -> str:
 class Relay:
     def __init__(self, host: str):
         self.host = host
-        self.certs = Path(tempfile.mkdtemp(prefix="relay-"))
+        self.certs = Path(tempfile.mkdtemp(prefix="relay-"))      # mounted into sandboxes: the certificate only
+        self.certs.chmod(0o755)                                   # a sandbox runs as another user
+        key = Path(tempfile.mkdtemp(prefix="relay-key-")) / "relay.key"
         self.crt = self.certs / "relay.crt"
         subprocess.run(["openssl", "req", "-x509", "-newkey", "rsa:2048", "-nodes", "-days", "2", "-subj", "/CN=relay",
-                        "-addext", f"subjectAltName=IP:{host}", "-keyout", str(self.certs / "relay.key"),
-                        "-out", str(self.crt)], check=True, capture_output=True)
+                        "-addext", f"subjectAltName=IP:{host}", "-keyout", str(key), "-out", str(self.crt)],
+                       check=True, capture_output=True)
+        self.crt.chmod(0o644)
         self.upstreams: dict[str, str] = {}
         self.models: dict[str, list[str]] = defaultdict(list)     # tag -> the model of each call
         self.server = ThreadingHTTPServer(("0.0.0.0", 0), self._handler())
         tls = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
-        tls.load_cert_chain(self.crt, self.certs / "relay.key")
+        tls.load_cert_chain(self.crt, key)
         self.server.socket = tls.wrap_socket(self.server.socket, server_side=True)
         threading.Thread(target=self.server.serve_forever, daemon=True).start()
 
@@ -75,6 +78,12 @@ class Relay:
                 pass
 
             def forward(self):
+                try:
+                    self.relay()
+                except (BrokenPipeError, ConnectionResetError):
+                    pass                                  # the harness stopped listening: its call is already recorded
+
+            def relay(self):
                 tag, _, rest = self.path[1:].partition("/")
                 if tag not in relay.upstreams:
                     return self.send_error(404)

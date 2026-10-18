@@ -6,6 +6,7 @@ shape. A harness that can't be pointed at the model (no endpoint, no key) is una
 """
 from __future__ import annotations
 
+import dataclasses
 import os
 from dataclasses import dataclass
 from pathlib import Path
@@ -23,6 +24,8 @@ ENDPOINTS = {                                        # vendor -> API shape -> ba
 }
 KEYS = {"anthropic": "ANTHROPIC_API_KEY", "openai": "OPENAI_API_KEY", "deepseek": "DEEPSEEK_API_KEY",
         "google": "GEMINI_API_KEY"}
+PIN = ("ANTHROPIC_SMALL_FAST_MODEL", "ANTHROPIC_DEFAULT_HAIKU_MODEL", "ANTHROPIC_DEFAULT_SONNET_MODEL",
+       "ANTHROPIC_DEFAULT_OPUS_MODEL")               # Claude Code's other model slots: on a named model they must name it too
 SHIPPED = {                                          # a shipped harness's provider name -> (vendor, shape)
     "anthropic": ("anthropic", "anthropic"), "openai": ("openai", "openai"),
     "deepseek": ("deepseek", "anthropic"), "deepseek-openai": ("deepseek", "openai"),
@@ -71,4 +74,7 @@ class Catalog:
             if vendor not in ENDPOINTS or not model:
                 raise Unavailable(f"{vendor!r} is not a known provider, or no model is named")
         url, key = endpoint(vendor, shape, self.env)
+        if model:
+            run = dataclasses.replace(harness.run, env={**harness.run.env, **dict.fromkeys(PIN, model)})
+            harness = dataclasses.replace(harness, run=run)
         return Target(name, folder, harness, Provider(vendor, url, key), model)

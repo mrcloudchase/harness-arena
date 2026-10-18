@@ -86,3 +86,9 @@ async def test_the_record_has_what_the_spec_lists(arena, bench):
 def test_a_task_that_repeats_hidden_material_is_a_leak(bench):
     assert bench.leaks(Task("x", "do", {"solution.py": "fine", "tests.txt": "the hidden answer"})) == ["tests.txt"]
     assert bench.leaks(Task("x", "do", {"a": "fine"})) == []
+
+
+def test_a_named_model_pins_every_model_slot_a_harness_has(catalog):
+    env = catalog.target("alpha", "deepseek/deepseek-chat").harness.run.env
+    assert {env[k] for k in ("ANTHROPIC_SMALL_FAST_MODEL", "ANTHROPIC_DEFAULT_HAIKU_MODEL")} == {"deepseek-chat"}
+    assert "ANTHROPIC_SMALL_FAST_MODEL" not in catalog.target("alpha").harness.run.env      # defaults mode pins nothing
