@@ -5,6 +5,8 @@ Rerunning a run id resumes it: probes and runs already recorded are skipped.
 """
 from __future__ import annotations
 
+import secrets
+import tempfile
 from pathlib import Path
 
 from harness_interface import Request
@@ -12,6 +14,7 @@ from harness_interface import Request
 from .benchmark import Benchmark, Task
 from .catalog import Catalog, Unavailable
 from .pool import limited
+from .relay import Relay
 from .scrub import Scrubber
 from .store import Mode, RunDir
 from .submission import extract, new_id
@@ -21,8 +24,14 @@ PROBE = "Reply with the single word: ok"
 
 
 class Arena:
-    def __init__(self, catalog: Catalog, turns: Turns, mode: Mode, run: RunDir, workers: int = 4):
+    def __init__(self, catalog: Catalog, turns: Turns, mode: Mode, run: RunDir, workers: int = 4,
+                 relay: Relay | None = None):
         self.catalog, self.turns, self.mode, self.run, self.workers = catalog, turns, mode, run, workers
+        self.relay = relay                           # compare mode: records which model every call used
+        self.scratch = Path(tempfile.mkdtemp(prefix="arena-"))      # workspaces here: no harness, model or benchmark in the path
+
+    def workspace(self) -> Path:
+        return self.scratch / f"w-{secrets.token_hex(4)}"
 
     async def probe(self, names: list[str]) -> dict[str, str]:
         """One trivial turn per harness on the mode's model. Maps each harness to "" if it can take part,
@@ -35,8 +44,10 @@ class Arena:
             except Unavailable as e:
                 known[name] = str(e)
                 return
+            if self.relay:
+                target, _ = self.relay.register(target)
             report = await self.turns.run(target, Request(PROBE, model=target.model),
-                                          self.run.path / "probes" / name)
+                                          self.workspace())
             ok = report.result.status == "ok" and not report.runner_error
             known[name] = "" if ok else (report.runner_error or f"probe {report.result.status}: {report.tail[-200:]}")
         await limited(self.workers, [lambda n=n: one(n) for n in names if n not in known])
@@ -53,11 +64,17 @@ class Arena:
 
     async def once(self, bench: Benchmark, name: str, task: Task, repeat: int, scrub: Scrubber) -> None:
         target = self.catalog.target(name, self.mode.model)
-        workspace = self.run.path / "workspaces" / name / f"{task.id}-{repeat}"
+        provider = target.provider.name
+        tag = ""
+        if self.relay:
+            target, tag = self.relay.register(target)
+        workspace = self.workspace()
         report = await self.turns.run(target, Request(task.instruction, model=target.model, files=dict(task.files)),
                                       workspace)
-        row = self.record(name, target.provider.name, task.id, repeat, workspace, report)
-        if row["status"] != "runner_error":
+        row = self.record(name, provider, task.id, repeat, workspace, report)
+        if tag and (foreign := self.relay.foreign(tag, target.model)) and not row["error"]:
+            row["finding"] = f"called {', '.join(foreign)}, not the named model {target.model}"
+        if row["status"] != "runner_error" and not row.get("finding"):
             row["submission"] = new_id()
             dest = self.run.path / "submissions" / row["submission"]
             row["redactions"] = extract(workspace, bench.deliverables(task), dest, scrub)
@@ -71,4 +88,4 @@ class Arena:
                 "task": task, "repeat": repeat, "status": "runner_error" if report.runner_error else r.status,
                 "exit_code": r.exit_code, "wall_s": round(report.wall_s, 2), "cost_usd": r.cost_usd,
                 "usage": r.usage, "files": list(r.files), "workspace": str(workspace), "submission": "",
-                "redactions": 0, "error": report.runner_error}
+                "redactions": 0, "error": report.runner_error, "finding": ""}
