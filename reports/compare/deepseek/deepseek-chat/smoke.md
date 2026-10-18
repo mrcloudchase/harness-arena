@@ -1,54 +1,33 @@
 # Compare · deepseek/deepseek-chat · smoke
 
-Run `shake2` · 1 repeats · 11 graded submissions
+Run `main` · 3 repeats · 165 graded submissions
 
 | Harness | Tasks graded | Pass rate (repeat spread) | Deterministic | Median wall (s) | Total wall (s) | Cost (USD) | No cost reported |
 |---|---|---|---|---|---|---|---|
-| aider | 1 | 100% (100%–100%) | 1.00 | 16.7 | 17 | 0.0000 | 1 |
-| cheetahclaws | 1 | 100% (100%–100%) | 1.00 | 17.3 | 17 | 0.0000 | 1 |
-| claude-code | 1 | 100% (100%–100%) | 1.00 | 15.3 | 15 | 0.0866 | 0 |
-| goose | 1 | 100% (100%–100%) | 1.00 | 10.7 | 11 | 0.0000 | 1 |
-| grok-cli | 1 | 100% (100%–100%) | 1.00 | 9.5 | 9 | 0.0000 | 1 |
-| hermes | 1 | 100% (100%–100%) | 1.00 | 58.1 | 58 | 0.0000 | 1 |
-| kimi-code | 1 | 100% (100%–100%) | 1.00 | 17.7 | 18 | 0.0000 | 1 |
-| minimax-code | 1 | 100% (100%–100%) | 1.00 | 33.4 | 33 | 0.0000 | 1 |
-| opensquilla | 1 | 100% (100%–100%) | 1.00 | 30.2 | 30 | 0.0020 | 0 |
-| qwen-code | 1 | 100% (100%–100%) | 1.00 | 16.5 | 16 | 0.0000 | 1 |
-| nanobot | 1 | 0% (0%–0%) | 0.00 | 20.7 | 21 | 0.0000 | 1 |
+| aider | 5 | 100% (100%–100%) | 1.00 | 17.0 | 250 | 0.0000 | 15 |
+| cheetahclaws | 5 | 100% (100%–100%) | 1.00 | 15.5 | 260 | 0.0000 | 15 |
+| claude-code | 5 | 100% (100%–100%) | 1.00 | 13.4 | 209 | 1.2509 | 0 |
+| goose | 5 | 100% (100%–100%) | 1.00 | 8.9 | 142 | 0.0000 | 15 |
+| grok-cli | 5 | 100% (100%–100%) | 1.00 | 8.8 | 159 | 0.0000 | 15 |
+| hermes | 5 | 100% (100%–100%) | 1.00 | 59.2 | 1470 | 0.0000 | 15 |
+| kimi-code | 5 | 100% (100%–100%) | 1.00 | 12.3 | 197 | 0.0000 | 15 |
+| minimax-code | 5 | 100% (100%–100%) | 1.00 | 26.7 | 415 | 0.0000 | 15 |
+| opensquilla | 5 | 100% (100%–100%) | 1.00 | 27.5 | 515 | 0.0349 | 0 |
+| qwen-code | 5 | 100% (100%–100%) | 1.00 | 14.7 | 243 | 0.0000 | 15 |
+| nanobot | 5 | 0% (0%–0%) | 0.00 | 18.7 | 1084 | 0.0000 | 15 |
 
 ## Unsupported harnesses
 
 - **cline**: provider refused: authentication
-- **codex**: probe timeout: "message":"Reconnecting... waiting for network (Connection failed: error sending request)"}
-{"type":"error","message":"Reconnecting... waiting for network (Connection failed: error sending request)"}
-
+- **codex**:  "message":"Reconnecting... waiting for network (Connection failed: error sending request)"} {"type":"error","message":"Reconnecting... waiting for network (Connection failed: error sending request)"}
 - **gajae**: probe fail: Error: No API key for litellm/deepseek-chat
-
 - **jcode**: probe fail: Error: Failed to select model 'deepseek-chat': Model deepseek-chat not supported by Anthropic provider
-
-- **kilo**: probe fail: c/deepseek-chat.
-{"type":"error","timestamp":1792364782159,"sessionID":"ses_eaebbf1b3ffexKWRSzbuoZ2KaN","error":{"name":"UnknownError","data":{"message":"Model not found: anthropic/deepseek-chat."}}}
-
-- **mimo**: probe fail: s (native:7:39)
-
-{"type":"error","timestamp":1792364779222,"sessionID":"ses_ffe5eaebbec12fferTqvXWGxgV","error":{"name":"UnknownError","data":{"message":"Model not found: anthropic/deepseek-chat."}}}
-
-- **omp**: probe fail: Model "anthropic/deepseek-chat" not found
-
-Run `omp models find <pattern>` to search, or `omp models` to list all.
-
-- **opencode**: probe fail: imestamp":1792364804101,"sessionID":"ses_eaebb8c51ffeHExTy1aRe5z81W","error":{"name":"UnknownError","data":{"message":"Unexpected server error. Check server logs for details.","ref":"err_02c22695"}}}
-
-- **openhands**: probe fail: ───────────────────────────────────────[0m
-Goodbye! 👋
-Conversation ID: 9a61db10f66c412288f134738ad99def
-Hint: run openhands --resume 9a61db10-f66c-4122-88f1-34738ad99def to resume this
-conversation.
-
-- **pi**: probe fail: on error.","durationMs":7,"thinkingLevel":"medium"}],"willRetry":false}
-{"type":"auto_retry_end","success":false,"attempt":3,"finalError":"Connection error."}
-{"type":"agent_settled","aborted":false}
-
+- **kilo**:  c/deepseek-chat. {"type":"error","timestamp":1792365369326,"sessionID":"ses_eaeb30055ffebTHgwHfqQX2R9n","error":{"name":"UnknownError","data":{"message":"Model not found: anthropic/deepseek-chat."}}}
+- **mimo**: : s (native:7:39) {"type":"error","timestamp":1792365363982,"sessionID":"ses_ffe5eaeb2ffe1ffeeHHRv0OGro","error":{"name":"UnknownError","data":{"message":"Model not found: anthropic/deepseek-chat."}}}
+- **omp**: probe fail: Model "anthropic/deepseek-chat" not found Run `omp models find <pattern>` to search, or `omp models` to list all.
+- **opencode**:  imestamp":1792365390129,"sessionID":"ses_eaeb29ce7ffeYwJrMfE1WcTmi2","error":{"name":"UnknownError","data":{"message":"Unexpected server error. Check server logs for details.","ref":"err_5a67363f"}}}
+- **openhands**:  ───────────────────────────────────────[0m Goodbye! 👋 Conversation ID: e6ead99aed59480099d53d6f7ba35323 Hint: run openhands --resume e6ead99a-ed59-4800-99d5-3d6f7ba35323 to resume this conversation.
+- **pi**:  n error.","durationMs":21,"thinkingLevel":"medium"}],"willRetry":false} {"type":"auto_retry_end","success":false,"attempt":3,"finalError":"Connection error."} {"type":"agent_settled","aborted":false}
 
 ## Model not verified (run without the relay, which these harnesses can't use)
 
@@ -57,8 +36,12 @@ conversation.
 
 ## Findings (never scored)
 
-- harness-engineering · roman #1: called claude-sonnet-5-5, not the named model deepseek-chat
-- deepseek-harness · roman #1: called deepseek-flash, not the named model deepseek-chat
+- deepseek-harness: called deepseek-flash, not the named model deepseek-chat (15 runs)
+- harness-engineering: called claude-sonnet-5-5, not the named model deepseek-chat (15 runs)
+
+## Finished ok without writing a file in any run (check the harness's integration, not its skill)
+
+- nanobot
 
 ## Runner errors (retried, not held against the harness)
 
@@ -74,4 +57,4 @@ None.
 
 ## Redactions
 
-- 0 in total over 11 submissions, at most 0 in one
+- 0 in total over 165 submissions, at most 0 in one

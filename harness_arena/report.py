@@ -2,7 +2,7 @@
 render one markdown table per run plus everything that qualifies it."""
 from __future__ import annotations
 
-from collections import defaultdict
+from collections import Counter, defaultdict
 from dataclasses import dataclass, field
 from statistics import mean, median
 
@@ -130,9 +130,15 @@ def render(mode: Mode, benchmark: str, run: RunDir, calibration: dict) -> str:
     out += section("Unsupported harnesses", [f"- **{n}**: {one_line(why)}" for n, why in sorted(probe.items()) if why])
     out += section("Model not verified (run without the relay, which these harnesses can't use)",
                    [f"- {n}" for n in run.load("direct", [])] if mode.kind == "compare" else [])
-    out += section("Findings (never scored)", [f"- {r['harness']} · {r['task']} #{r['repeat']}: {r['finding']}"
-                                                for r in runs.values() if r.get("finding")]
+    found = Counter((r["harness"], r["finding"]) for r in runs.values() if r.get("finding"))
+    out += section("Findings (never scored)", [f"- {h}: {why} ({n} runs)" for (h, why), n in sorted(found.items())]
                    + [f"- {f['task']}: {f['finding']}" for f in run.rows("findings")])
+    wrote = defaultdict(list)
+    for r in runs.values():
+        if r["status"] == "ok":
+            wrote[r["harness"]].append(bool(r.get("files")))
+    out += section("Finished ok without writing a file in any run (check the harness's integration, not its skill)",
+                   [f"- {h}" for h, w in sorted(wrote.items()) if not any(w)])
     out += section("Runner errors (retried, not held against the harness)",
                    [f"- {r['harness']} · {r['task']} #{r['repeat']}: {one_line(r['error'])}" for r in runs.values()
                     if r["status"] == "runner_error"])

@@ -111,3 +111,16 @@ def test_the_index_lists_every_report(tmp_path):
         (tmp_path / rel).parent.mkdir(parents=True, exist_ok=True)
         (tmp_path / rel).write_text("#")
     assert "(compare/m/x/smoke.md)" in index(tmp_path) and "(defaults/smoke.md)" in index(tmp_path)
+
+
+def test_findings_are_grouped_and_a_harness_that_wrote_nothing_is_named(tmp_path):
+    run = make(tmp_path)
+    run.finish_judging()
+    for i in range(3):
+        run.append("runs", run_row("c", f"t{i}", 1, "", 1, finding="called other", files=[]))
+    run.append("runs", run_row("a", "t1", 1, "S-1", 10, 0.5, files=["x"]))
+    run.append("runs", run_row("b", "t1", 1, "S-4", 5, 1.0, files=[]))
+    text = render(Mode("defaults"), "smoke", run, {})
+    assert "- c: called other (3 runs)" in text
+    wrote_nothing = text.split("Finished ok without writing")[1].split("##")[0]
+    assert "- b" in wrote_nothing and "- a" not in wrote_nothing
