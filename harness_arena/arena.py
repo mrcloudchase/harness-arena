@@ -5,6 +5,7 @@ Rerunning a run id resumes it: probes and runs already recorded are skipped.
 """
 from __future__ import annotations
 
+import dataclasses
 import secrets
 import tempfile
 from pathlib import Path
@@ -21,6 +22,7 @@ from .submission import extract, new_id
 from .turns import Report, Turns
 
 PROBE = "Reply with the single word: ok"
+PROBE_TIMEOUT_S = 240                               # a trivial turn that takes longer says the harness can't run this model
 
 
 class Arena:
@@ -35,23 +37,34 @@ class Arena:
 
     async def probe(self, names: list[str]) -> dict[str, str]:
         """One trivial turn per harness on the mode's model. Maps each harness to "" if it can take part,
-        or to why it can't. A harness that fails is unsupported: skipped, listed, never scored."""
-        known = self.run.load("probe", {})
+        or to why it can't. A harness that fails is unsupported: skipped, listed, never scored. One that
+        works only without the relay is run without it, and listed as unverified."""
+        known, direct = self.run.load("probe", {}), set(self.run.load("direct", []))
+
+        async def attempt(name: str, relay: Relay | None) -> str:
+            target = self.catalog.target(name, self.mode.model)
+            if relay:
+                target, _ = relay.register(target)
+            run = dataclasses.replace(target.harness.run, timeout_s=min(target.harness.run.timeout_s, PROBE_TIMEOUT_S))
+            target = dataclasses.replace(target, harness=dataclasses.replace(target.harness, run=run))
+            report = await self.turns.run(target, Request(PROBE, model=target.model), self.workspace())
+            ok = report.result.status == "ok" and not report.runner_error
+            return "" if ok else (report.runner_error or f"probe {report.result.status}: {report.tail[-200:]}")
 
         async def one(name: str) -> None:
             try:
-                target = self.catalog.target(name, self.mode.model)
+                self.catalog.target(name, self.mode.model)
             except Unavailable as e:
                 known[name] = str(e)
                 return
-            if self.relay:
-                target, _ = self.relay.register(target)
-            report = await self.turns.run(target, Request(PROBE, model=target.model),
-                                          self.workspace())
-            ok = report.result.status == "ok" and not report.runner_error
-            known[name] = "" if ok else (report.runner_error or f"probe {report.result.status}: {report.tail[-200:]}")
+            known[name] = await attempt(name, self.relay)
+            if known[name] and self.relay:
+                known[name] = await attempt(name, None)
+                if not known[name]:
+                    direct.add(name)
         await limited(self.workers, [lambda n=n: one(n) for n in names if n not in known])
         self.run.save("probe", known)
+        self.run.save("direct", sorted(direct))
         return known
 
     async def play(self, bench: Benchmark, names: list[str], tasks: list[Task], repeat: int,
@@ -66,7 +79,7 @@ class Arena:
         target = self.catalog.target(name, self.mode.model)
         provider = target.provider.name
         tag = ""
-        if self.relay:
+        if self.relay and name not in self.run.load("direct", []):
             target, tag = self.relay.register(target)
         workspace = self.workspace()
         report = await self.turns.run(target, Request(task.instruction, model=target.model, files=dict(task.files)),
