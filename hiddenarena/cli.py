@@ -12,6 +12,8 @@ from pathlib import Path
 
 import httpx
 
+from harness_interface import Docker
+
 from .arena import Arena
 from .benchmark import Benchmark, Exercise, Model
 from .blindcheck import blindcheck
@@ -89,32 +91,34 @@ async def contest(args, mode: Mode, catalog: Catalog) -> None:
     saved = run.load("config")                       # a resumed run keeps its panel and settings
     wanted = args.harnesses.split(",") if args.harnesses != "all" else catalog.names()
     tasks = bench.tasks()[:args.tasks]
-    config = saved or {"run_id": run.path.name, "benchmark": args.benchmark, "repeat": args.repeat, "judges": args.judges,
-                       "judge_harness": args.judge_harness, "harnesses": wanted, "tasks": [t.id for t in tasks]}
+    config = saved or {"run_id": run.path.name, "benchmark": args.benchmark, "repeat": args.repeat,
+                       "judges": args.judges, "judge_harness": args.judge_harness, "harnesses": wanted,
+                       "tasks": [t.id for t in tasks]}
     run.save("config", config)
     for t in tasks:
         for leak in bench.leaks(t):
             run.append("findings", {"task": t.id, "finding": f"input file {leak} repeats hidden material"})
     tasks = [t for t in tasks if not bench.leaks(t)]
     kinds = {j.kind for t in tasks for j in bench.judges(t)}
+    judge_models, compared = config["judges"].split(","), mode.model.partition("/")[0]
 
+    logs = ROOT / "results" / "docker-logs"
+    await Docker(logs).recover()                     # whatever an earlier crash left behind
     relay = Relay(gateway()) if mode.kind == "compare" and not args.no_relay else None
-    turns = Turns(docker_runtime(ROOT / "results" / "docker-logs", (relay.certs,) if relay else ()))
-    arena = Arena(catalog, turns, mode, run, args.workers, relay)
-    probe = await arena.probe(config["harnesses"])
-    names = [n for n, why in probe.items() if not why and n in config["harnesses"]]
-    judge_models = config["judges"].split(",")
-    await arena.play(bench, names, tasks, config["repeat"], scrubber(catalog, [mode.model, *judge_models]))
-    rows = run.runs().values()
-    run.seal({r["submission"]: {k: r[k] for k in ("harness", "provider", "model", "task", "repeat")}
-              for r in rows if r["submission"]})
-
+    turns = Turns(docker_runtime(logs, (relay.certs,) if relay else ()))
     async with httpx.AsyncClient(timeout=300) as client:
-        scorers = {}
+        scorers = {}                                 # built first: a bad panel fails before anything runs
         if "llm" in kinds:
-            scorers["llm"] = panel(config["judges"], mode.model.partition("/")[0], client)
+            scorers["llm"] = panel(config["judges"], compared, client)
         if "harness" in kinds:
-            scorers["harness"] = Exerciser(catalog, turns, config["judge_harness"], judge_models, names)
+            scorers["harness"] = Exerciser(catalog, turns, config["judge_harness"], judge_models, config["harnesses"], compared)
+
+        arena = Arena(catalog, turns, mode, run, args.workers, relay)
+        probe = await arena.probe(config["harnesses"])
+        names = [n for n, why in probe.items() if not why and n in config["harnesses"]]
+        await arena.play(bench, names, tasks, config["repeat"], scrubber(catalog, [mode.model, *judge_models]))
+        run.seal({r["submission"]: {k: r[k] for k in ("harness", "provider", "model", "task", "repeat")}
+                  for r in run.runs().values() if r["submission"]})
         await Judging(run, bench, scorers, args.workers).run_all()
     run.finish_judging()
     print(write_report(mode, args.benchmark, run))

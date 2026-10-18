@@ -86,16 +86,21 @@ def parse_winner(reply: str, ids: tuple[str, str]) -> str:
     return winner
 
 
+def check_panel(names: list[str], compared: str = "") -> None:
+    """The panel rules: at least two families, none the family being compared."""
+    families = {n.partition("/")[0] for n in names}
+    if len(families) < 2:
+        raise SystemExit("the judge panel needs models from at least two families")
+    if compared in families:
+        raise SystemExit(f"the judge panel includes a {compared} model, the family being compared")
+
+
 class Panel:
     """Judges from at least two model families, fixed for a run. The score is the panel's median; each
     judge's own score is kept beside it."""
 
     def __init__(self, judges: list, compared: str = ""):
-        families = {j.family for j in judges}
-        if len(families) < 2:
-            raise SystemExit("the judge panel needs models from at least two families")
-        if compared in families:
-            raise SystemExit(f"the judge panel includes a {compared} model, the family being compared")
+        check_panel([j.name for j in judges], compared)
         self.judges = judges
 
     async def _ask(self, judge, prompt: str, parse):

@@ -10,7 +10,7 @@ from pathlib import Path
 from harness_interface import Request
 
 from .catalog import Catalog
-from .models import Scored, parse_scores
+from .models import Scored, check_panel, parse_scores
 from .submission import Submission
 from .turns import Turns
 
@@ -21,9 +21,11 @@ BRIEF = ("Exercise the work in ./submission as the task below describes: run it 
 
 
 class Exerciser:
-    def __init__(self, catalog: Catalog, turns: Turns, harness: str, models: list[str], contestants: list[str]):
+    def __init__(self, catalog: Catalog, turns: Turns, harness: str, models: list[str], contestants: list[str],
+                 compared: str = ""):
         if harness in contestants:
             raise SystemExit(f"{harness} is a contestant in this run, so it can't be a held-out judge")
+        check_panel(models, compared)
         self.catalog, self.turns, self.harness, self.models = catalog, turns, harness, models
 
     async def score(self, sub: Submission, rubric: tuple[str, ...]) -> dict[str, Scored]:
