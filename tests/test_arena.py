@@ -56,7 +56,7 @@ async def test_a_refusal_is_retried_then_a_runner_error_and_never_scored(arena, 
     await arena.play(bench, ["limited"], bench.tasks()[:1], 1, NONE)
     (row,) = arena.run.rows("runs")
     assert len((tmp_path / "n").read_text().split()) == 2          # one try and one retry
-    assert row["status"] == "runner_error" and row["submission"] == "" and "429" in row["error"]
+    assert row["status"] == "runner_error" and row["submission"] == "" and "provider refused" in row["error"]
     assert not arena.run.load("submissions")
     await arena.play(bench, ["limited"], bench.tasks()[:1], 1, NONE)  # a resume tries it again
     assert len(arena.run.rows("runs")) == 2
@@ -92,3 +92,11 @@ def test_a_named_model_pins_every_model_slot_a_harness_has(catalog):
     env = catalog.target("alpha", "deepseek/deepseek-chat").harness.run.env
     assert {env[k] for k in ("ANTHROPIC_SMALL_FAST_MODEL", "ANTHROPIC_DEFAULT_HAIKU_MODEL")} == {"deepseek-chat"}
     assert "ANTHROPIC_SMALL_FAST_MODEL" not in catalog.target("alpha").harness.run.env      # defaults mode pins nothing
+
+
+def test_only_a_provider_refusal_looks_like_one():
+    from hiddenarena.turns import REFUSAL
+    for refused in ("API Error: 429 rate limit", "HTTP 403 Forbidden", "status: 401", "invalid api key", "Overloaded"):
+        assert REFUSAL.search(refused), refused
+    for plain in ('"duration_ms":429', "took 403 steps", "AssertionError: 1 != 2", '"output_tokens":4031'):
+        assert not REFUSAL.search(plain), plain
