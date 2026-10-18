@@ -1,0 +1,31 @@
+[project]
+name = "harness-arena"
+version = "0.1.0"
+description = "A blind, head-to-head benchmark of coding harnesses, built on harness-interface."
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "harness-interface",
+    "httpx>=0.27",
+    "pytest>=8",                                     # the smoke benchmark's hidden tests
+]
+
+[project.scripts]
+harness-arena = "harness_arena.cli:main"
+
+[tool.uv.sources]
+harness-interface = { git = "https://github.com/mrcloudchase/harness-interface", tag = "v1.0.2" }
+
+[dependency-groups]
+dev = ["pytest>=8", "pytest-asyncio>=0.24"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["harness_arena"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
