@@ -16,8 +16,8 @@ from harness_interface.resources import DEFAULT_SANDBOX
 
 from .catalog import Target
 
-REFUSAL = re.compile(r"\b(401|403|429|529|unauthori[sz]ed|rate.?limit|quota|insufficient|overloaded|"
-                     r"invalid api key|authentication)\b", re.I)
+REFUSAL = re.compile(r"(?:status|http|error|code)\D{0,4}(?:401|403|429|529)\b|unauthori[sz]ed|forbidden|"
+                     r"rate.?limit|too many requests|quota|insufficient|overloaded|invalid api key|authentication", re.I)
 RuntimeFor = Callable[[Target], Runtime]
 
 
