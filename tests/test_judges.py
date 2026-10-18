@@ -17,6 +17,9 @@ printf '{{"items": {{"1": {{"score": 0.75, "reason": "ran it"}}}}}}' > verdict.j
 """
 
 
+MODELS = ["openai/gpt-4o", "deepseek/deepseek-chat"]
+
+
 def submission(tmp_path, task):
     (tmp_path / "S-1").mkdir()
     (tmp_path / "S-1" / "solution.py").write_text("ANSWER")
@@ -25,25 +28,31 @@ def submission(tmp_path, task):
 
 async def test_a_contestant_cannot_be_the_harness_judge(catalog, turns):
     with pytest.raises(SystemExit):
-        Exerciser(catalog, turns, "alpha", ["deepseek/deepseek-chat"], contestants=["alpha", "beta"])
+        Exerciser(catalog, turns, "alpha", MODELS, contestants=["alpha", "beta"])
 
 
 async def test_the_harness_judge_sees_only_the_submission_the_task_and_the_rubric(catalog, turns, bench, tmp_path):
     listing = tmp_path / "listing"
-    harness(catalog.folder, "judge", JUDGE.format(listing=listing))
-    ex = Exerciser(catalog, turns, "judge", ["deepseek/deepseek-chat"], contestants=["alpha", "beta"])
-    (score, reasons), = (await ex.score(submission(tmp_path, bench.tasks()[0]), ("it works",))).values()
-    assert score == 0.75 and reasons["1"]["reason"] == "ran it"
+    harness(catalog.folder, "judge", JUDGE.format(listing=listing), "openai")
+    ex = Exerciser(catalog, turns, "judge", MODELS, contestants=["alpha", "beta"])
+    scored = await ex.score(submission(tmp_path, bench.tasks()[0]), ("it works",))
+    assert [(s, r["1"]["reason"]) for s, r in scored.values()] == [(0.75, "ran it")] * 2
     *files, cwd = listing.read_text().split("\n")[:-1]
     assert files == ["./AGENTS.md", "./RUBRIC.md", "./submission/solution.py"]
     assert not any(n in cwd for n in ("alpha", "beta", "deepseek", "run"))        # a neutral path, too
 
 
 async def test_the_harness_judge_names_its_judge_by_harness_and_model(catalog, turns, bench, tmp_path):
-    harness(catalog.folder, "judge", JUDGE.format(listing=tmp_path / "l"))
-    out = await Exerciser(catalog, turns, "judge", ["deepseek/deepseek-chat", "deepseek/deepseek-reasoner"], []).score(
-        submission(tmp_path, bench.tasks()[0]), ("x",))
-    assert set(out) == {"judge@deepseek/deepseek-chat", "judge@deepseek/deepseek-reasoner"}
+    harness(catalog.folder, "judge", JUDGE.format(listing=tmp_path / "l"), "openai")
+    out = await Exerciser(catalog, turns, "judge", MODELS, []).score(submission(tmp_path, bench.tasks()[0]), ("x",))
+    assert set(out) == {f"judge@{m}" for m in MODELS}
+
+
+def test_the_harness_judge_follows_the_panel_rules(catalog, turns):
+    with pytest.raises(SystemExit):
+        Exerciser(catalog, turns, "judge", ["openai/gpt-4o", "openai/gpt-4.1"], [])                  # one family
+    with pytest.raises(SystemExit):
+        Exerciser(catalog, turns, "judge", MODELS, [], compared="deepseek")                          # the compared family
 
 
 async def test_calibration_measures_each_judges_agreement_with_the_humans():

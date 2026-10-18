@@ -12,7 +12,7 @@ from harness_arena.catalog import Catalog
 from harness_arena.store import Mode, RunDir
 from harness_arena.turns import Turns
 
-KEYS = {"DEEPSEEK_API_KEY": "k", "OPENAI_API_KEY": "k", "ANTHROPIC_API_KEY": "k"}
+KEYS = {"DEEPSEEK_API_KEY": "k", "OPENAI_API_KEY": "k", "ANTHROPIC_API_KEY": "k", "GEMINI_API_KEY": "k"}
 SOLVED = "# written by alphacli on deepseek-chat\nANSWER\n# Co-Authored-By: Alpha <a@example.com>\n"
 
 
