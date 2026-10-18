@@ -124,6 +124,8 @@ def render(mode: Mode, benchmark: str, run: RunDir, calibration: dict) -> str:
            f"Run `{run.path.name}` · {config.get('repeat', '?')} repeats · {len(sealed)} graded submissions", "",
            table(head, body), ""]
     out += section("Unsupported harnesses", [f"- **{n}**: {why}" for n, why in sorted(probe.items()) if why])
+    out += section("Model not verified (run without the relay, which these harnesses can't use)",
+                   [f"- {n}" for n in run.load("direct", [])] if mode.kind == "compare" else [])
     out += section("Findings (never scored)", [f"- {r['harness']} · {r['task']} #{r['repeat']}: {r['finding']}"
                                                 for r in runs.values() if r.get("finding")]
                    + [f"- {f['task']}: {f['finding']}" for f in run.rows("findings")])

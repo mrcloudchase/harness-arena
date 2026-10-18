@@ -100,3 +100,16 @@ def test_only_a_provider_refusal_looks_like_one():
         assert REFUSAL.search(refused), refused
     for plain in ('"duration_ms":429', "took 403 steps", "AssertionError: 1 != 2", '"output_tokens":4031'):
         assert not REFUSAL.search(plain), plain
+
+
+async def test_a_harness_the_relay_breaks_is_run_without_it_and_listed(arena, harnesses):
+    harness(harnesses, "shy", 'test -n "$VIA_RELAY" && exit 1\nprintf ok > x\n' + REPORT)
+
+    class Strict:                                    # points a harness at a "relay" it can't live with
+        def register(self, target):
+            import dataclasses
+            run = dataclasses.replace(target.harness.run, env={**target.harness.run.env, "VIA_RELAY": "1"})
+            return dataclasses.replace(target, harness=dataclasses.replace(target.harness, run=run)), "t"
+    arena.relay = Strict()
+    probe = await arena.probe(["shy"])
+    assert probe == {"shy": ""} and arena.run.load("direct") == ["shy"]
