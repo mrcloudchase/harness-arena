@@ -91,6 +91,10 @@ def summarize(runs: dict, verdicts: list[dict], sealed: dict, withheld: set[str]
     return rows
 
 
+def one_line(text: str, limit: int = 200) -> str:
+    return " ".join(text.split())[-limit:]
+
+
 def pct(x: float | None) -> str:
     return "–" if x is None else f"{x:.0%}"
 
@@ -123,14 +127,14 @@ def render(mode: Mode, benchmark: str, run: RunDir, calibration: dict) -> str:
     out = [f"# {mode.title} · {benchmark}", "",
            f"Run `{run.path.name}` · {config.get('repeat', '?')} repeats · {len(sealed)} graded submissions", "",
            table(head, body), ""]
-    out += section("Unsupported harnesses", [f"- **{n}**: {why}" for n, why in sorted(probe.items()) if why])
+    out += section("Unsupported harnesses", [f"- **{n}**: {one_line(why)}" for n, why in sorted(probe.items()) if why])
     out += section("Model not verified (run without the relay, which these harnesses can't use)",
                    [f"- {n}" for n in run.load("direct", [])] if mode.kind == "compare" else [])
     out += section("Findings (never scored)", [f"- {r['harness']} · {r['task']} #{r['repeat']}: {r['finding']}"
                                                 for r in runs.values() if r.get("finding")]
                    + [f"- {f['task']}: {f['finding']}" for f in run.rows("findings")])
     out += section("Runner errors (retried, not held against the harness)",
-                   [f"- {r['harness']} · {r['task']} #{r['repeat']}: {r['error']}" for r in runs.values()
+                   [f"- {r['harness']} · {r['task']} #{r['repeat']}: {one_line(r['error'])}" for r in runs.values()
                     if r["status"] == "runner_error"])
     cal = [f"- {kind}: " + ("; ".join(f"{j} {c['agreement']:.2f} (n={c['n']})" for j, c in sorted(calibration[kind]["judges"].items()))
                             + f", threshold {calibration[kind]['threshold']}" if kind in calibration else "no calibration")
