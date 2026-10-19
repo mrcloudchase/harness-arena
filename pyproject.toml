@@ -13,6 +13,11 @@ dependencies = [
 [project.scripts]
 harness-arena = "harness_arena.cli:main"
 
+[project.optional-dependencies]
+evalplus = [
+    "numpy>=2.4.6",
+]
+
 [tool.uv.sources]
 harness-interface = { git = "https://github.com/mrcloudchase/harness-interface", tag = "v1.0.2" }
 

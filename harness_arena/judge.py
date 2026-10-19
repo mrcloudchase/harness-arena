@@ -26,6 +26,7 @@ BRIEF = ("The folders in ./submissions each hold one result of the same job. CRI
          "all %d from best to worst. Write only this JSON to the file ./ranking.json, using a shell command or a file tool; a "
          'ranking in your reply does not count: {"ranking": ["<id of the best>", "...", "<id of the worst>"], '
          '"reasons": {"<id>": "why"}}. Every id exactly once. Judge only the work in front of you.')
+TURN_TIMEOUT_S = 600                                 # a judge that has not written its file by now is hung
 NO_FILES = "This result contains no files."
 
 
@@ -73,7 +74,7 @@ class PeerJudging:
         async def step(n: int, feedback: str) -> None:
             workspace = Path(tempfile.mkdtemp(prefix="judge-"))        # a neutral path: no run, model or harness in it
             brief = BRIEF % len(ids) + (f" Your last attempt was rejected: {feedback}" if feedback else "")
-            out["report"], out["foreign"] = await self.runner.go(judge, Request(brief, files=files), workspace)
+            out["report"], out["foreign"] = await self.runner.go(judge, Request(brief, files=files), workspace, timeout_s=TURN_TIMEOUT_S)
             out["workspace"] = workspace
 
         async def verify() -> Check:

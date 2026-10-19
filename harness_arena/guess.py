@@ -20,6 +20,7 @@ from .stats import p_at_least
 from .store import RunDir
 
 ALPHA = 0.05
+TURN_TIMEOUT_S = 600
 BRIEF = ("The folders in ./submissions each hold the work of one of the harnesses named in CONTESTANTS.md; each harness wrote "
          "exactly one. Work out who wrote which. Write only this JSON to the file ./guess.json, using a shell command or a "
          'file tool; a guess in your reply does not count: {"<submission id>": "<harness name>", ...}. Every id once and every '
@@ -55,7 +56,7 @@ class GuessAudit:
 
         async def step(n: int, feedback: str) -> None:
             workspace = Path(tempfile.mkdtemp(prefix="judge-"))
-            out["report"], _ = await self.runner.go(judge, Request(BRIEF + (f" Rejected: {feedback}" if feedback else ""), files=files), workspace)
+            out["report"], _ = await self.runner.go(judge, Request(BRIEF + (f" Rejected: {feedback}" if feedback else ""), files=files), workspace, timeout_s=TURN_TIMEOUT_S)
             out["workspace"] = workspace
 
         async def verify() -> Check:
