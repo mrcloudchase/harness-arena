@@ -76,3 +76,15 @@ class Submission:
 
     def files(self) -> dict[str, str]:
         return {p.relative_to(self.path).as_posix(): p.read_text() for p in sorted(self.path.rglob("*")) if p.is_file()}
+
+
+NO_FILES = "This result contains no files."
+
+
+def room(root: Path, ids: list[str], extra: dict[str, str]) -> dict[str, str]:
+    """The files of a judge's workspace: each submission under its id, in the order given, plus the extras."""
+    files = dict(extra)
+    for sid in ids:
+        theirs = Submission(sid, "", 0, root / "submissions" / sid).files()
+        files.update({f"submissions/{sid}/{p}": t for p, t in theirs.items()} or {f"submissions/{sid}/NO_FILES.txt": NO_FILES})
+    return files

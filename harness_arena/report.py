@@ -101,6 +101,7 @@ def blindness(audit: dict | None, scrub: dict, guesses: list[dict]) -> list[str]
         return lines + ["- The harnesses' guess test has not run."]
     p, s = audit["pooled"], audit["self"]
     untested = sorted(j for j in {g["judge"] for g in guesses} if not any(g["guess"] for g in guesses if g["judge"] == j))
+    lines.append(f"- Asked in the conversation where they ranked: {audit.get('resumed', 0)} guess sets; in a fresh turn: {audit.get('fresh', 0)}.")
     lines += [f"- All judges together guessed {p['right']} of {p['n']} authors right (p={p['p']:.3f}).",
               f"- Judges recognising their own work: {s['right']} of {s['n']} (p={s['p']:.3f}).",
               f"- Verdict: {'**blind**: nobody beat chance.' if audit['blind'] else '**NOT blind**: someone beat chance.'}", ""]

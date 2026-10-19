@@ -1,7 +1,7 @@
 """harness-arena: compare, defaults, gate and report.
 
-Each of compare and defaults is the whole loop for one benchmark: gate, contest, scrub, peer judging, blindness
-audit, report. Rerun a run id to resume it.
+Each of compare and defaults is the whole loop for one benchmark: gate, contest, scrub, peer judging (each judge then
+guesses who wrote what: the blindness test), report. Rerun a run id to resume it.
 """
 from __future__ import annotations
 
@@ -38,7 +38,6 @@ def parser() -> argparse.ArgumentParser:
     shared.add_argument("--workers", type=int, default=4)
     shared.add_argument("--run-id")
     shared.add_argument("--scrub-rounds", type=int, default=3, help="rounds of scrub-then-classify before judging")
-    shared.add_argument("--audit-groups", type=int, default=5, help="groups of results the judges try to attribute")
     shared.add_argument("--max-turns", type=int, help="stop cleanly after this many harness turns; rerun to continue")
     c = sub.add_parser("compare", parents=[shared])
     c.add_argument("--model", required=True, help="provider/model")
@@ -102,12 +101,10 @@ async def contest(args, mode: Mode, catalog: Catalog) -> int:
             terms = {t for n in catalog.names() for t in harness_terms(catalog.folder / n)} | set(ENDPOINTS) | model_terms(mode.model)
             result = await Scrubbing(run, terms).run_loop(args.scrub_rounds)
             print(f"scrub: {result.state} after {result.rounds} round(s)")
-        await PeerJudging(runner, bench, args.workers).run_all(judges)
+        await PeerJudging(runner, bench, args.workers).run_all(judges)      # each judge ranks, then guesses who wrote what
         run.finish_judging()
         run.save("anchors", anchor_scores(run, bench))
-        guess = GuessAudit(runner, args.audit_groups, args.workers)
-        await guess.run_all(judges)
-        run.save("audit", guess.verdict())
+        run.save("audit", GuessAudit(run).verdict())
     except Exhausted as e:
         print(f"exhausted: {e}; rerun with --run-id {run.path.name} to continue")
         return 2

@@ -39,11 +39,13 @@ class Turns:
     def __init__(self, runtime_for: RuntimeFor, retries: int = 3, backoff_s: float = 5.0):
         self.runtime_for, self.retries, self.backoff_s = runtime_for, retries, backoff_s
 
-    async def run(self, target: Target, request: Request, workspace: Path) -> Report:
+    async def run(self, target: Target, request: Request, workspace: Path, fresh: bool = True) -> Report:
         """The turn in a fresh workspace. A turn that never ran, or was refused by its provider, is retried
-        and, if it keeps failing, reported as a runner error."""
+        and, if it keeps failing, reported as a runner error. A turn that continues a conversation (`fresh=False`) keeps
+        the workspace it is in."""
         for attempt in range(self.retries + 1):
-            shutil.rmtree(workspace, ignore_errors=True)
+            if fresh:
+                shutil.rmtree(workspace, ignore_errors=True)
             start = time.monotonic()
             turn = await Turn.start(self.runtime_for(target), target.harness, target.provider, request,
                                     workspace, target.folder)

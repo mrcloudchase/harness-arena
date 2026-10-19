@@ -1,6 +1,7 @@
 """Peer judging: every harness that ran in the contest judges, blind. For each group of results (one task, one
 repeat) a judge is given the results in a random order under opaque ids, plus what makes a result better, and ranks
-them all, best first. It is never told who wrote what, nor what the task said.
+them all, best first. It is never told who wrote what, nor what the task said. Once its ranking is saved it is
+asked to guess who wrote what (guess.py), which is the blindness test.
 
 This module sees only submissions: their ids, groups and directories. It never opens the run records or the sealed map.
 """
@@ -19,7 +20,8 @@ from .loop import Check, Loop
 from .pool import limited
 from .runner import Runner
 from .store import RunDir
-from .submission import Submission
+from .guess import ask
+from .submission import NO_FILES, Submission, room
 
 BRIEF = ("The folders in ./submissions each hold one result of the same job. CRITERIA.md says what makes a result better. "
          "Inspect and run every result (start a server in the background with &, and stop it when you are done), then rank "
@@ -27,7 +29,6 @@ BRIEF = ("The folders in ./submissions each hold one result of the same job. CRI
          'ranking in your reply does not count: {"ranking": ["<id of the best>", "...", "<id of the worst>"], '
          '"reasons": {"<id>": "why"}}. Every id exactly once. Judge only the work in front of you.')
 TURN_TIMEOUT_S = 600                                 # a judge that has not written its file by now is hung
-NO_FILES = "This result contains no files."
 
 
 def parse_ranking(text: str, ids: list[str]) -> tuple[list[str], dict]:
@@ -47,28 +48,21 @@ def groups(run: RunDir) -> dict[tuple[str, int], list[str]]:
     return {k: v for k, v in out.items() if len(v) > 1}
 
 
-def room(run: RunDir, ids: list[str], extra: dict[str, str]) -> dict[str, str]:
-    """The files of a judge's workspace: each submission under its id, in the order given, plus the extras."""
-    files = dict(extra)
-    for sid in ids:
-        theirs = Submission(sid, "", 0, run.path / "submissions" / sid).files()
-        files.update({f"submissions/{sid}/{p}": t for p, t in theirs.items()} or {f"submissions/{sid}/NO_FILES.txt": NO_FILES})
-    return files
-
-
 class PeerJudging:
     def __init__(self, runner: Runner, bench: Benchmark, workers: int = 4):
         self.runner, self.run, self.bench, self.workers = runner, runner.run, bench, workers
         self.tasks = {t.id: t for t in bench.tasks()}
 
-    async def run_all(self, judges: list[str]) -> None:
+    async def run_all(self, judges: list[str], names: list[str] | None = None) -> None:
+        """Every judge ranks every group, and then says who it thinks wrote what, out of `names` (default: the judges)."""
+        self.names = names or judges
         done = {(r["judge"], r["task"], r["repeat"]) for r in self.run.rows("judgments") if not r["error"]}
         await limited(self.workers, [lambda j=j, k=k, ids=ids: self.one(j, *k, ids)
                                      for k, ids in sorted(groups(self.run).items()) for j in judges if (j, *k) not in done])
 
     async def one(self, judge: str, task: str, repeat: int, ids: list[str]) -> None:
         order = random.sample(ids, len(ids))         # each judge sees its own order: position carries nothing
-        files = room(self.run, order, {"CRITERIA.md": self.bench.criteria(self.tasks[task])})
+        files = room(self.run.path, order, {"CRITERIA.md": self.bench.criteria(self.tasks[task])})
         out: dict = {}
 
         async def step(n: int, feedback: str) -> None:
@@ -89,3 +83,8 @@ class PeerJudging:
         self.run.append("judgments", {"judge": judge, "task": task, "repeat": repeat, "ranking": out.get("ranking", []),
                                       "reasons": out.get("reasons", {}), "error": "" if result.state == "success" else result.why,
                                       "finding": f"called {', '.join(out['foreign'])}" if out.get("foreign") else ""})
+        if result.state == "success":                # the ranking is saved: now, and only now, it is told who took part
+            guess, error, resumed = await ask(self.runner, judge, self.run.path, order, self.names, out["workspace"],
+                                              out["report"].result.session_id)
+            self.run.append("guesses", {"judge": judge, "task": task, "repeat": repeat, "guess": guess, "error": error,
+                                        "resumed": resumed, "names": len(self.names)})

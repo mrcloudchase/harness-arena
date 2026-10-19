@@ -16,9 +16,9 @@ harness-arena report compare smoke --model deepseek/deepseek-chat
 `compare` and `defaults` are the whole loop for one benchmark, and resume if you give them the same `--run-id`:
 
 ```
-gate ─► contest ─► scrub ◄──► classifier ─► peer judging ─► blindness test ─► report
-                     └─ new fingerprints ─┘   (all contestants     (all contestants guess
-                                                rank every group)     who wrote what)
+gate ─► contest ─► scrub ◄──► classifier ─► peer judging ─────────────────► report
+                     └─ new fingerprints ─┘   every contestant ranks each group,
+                                              then guesses who wrote what (blindness test)
 ```
 
 ## The loop
@@ -41,10 +41,11 @@ budget is never success.
    repeat) a judge gets all of them in its own random order, plus the benchmark's criteria, and nothing else: no names, no
    task, no hidden tests, no logs. It runs and inspects them and writes a full ranking, best first. This module never opens
    the run records or the sealed map.
-5. **Blindness test** (`guess.py`). After judging, every harness is shown groups of results and the names of the harnesses
-   that wrote them, and must say who wrote which. The ranking only stands if no judge, nor all judges together, nor any
-   harness recognising its own work, beats chance (an exact Poisson-binomial test; per judge at alpha divided by the number of
-   judges).
+5. **Blindness test** (`guess.py`). Straight after a judge saves its ranking it is told the names of the harnesses that took
+   part and must say which wrote which result, in the same conversation if its harness can resume one (a fresh turn with the
+   results if not). The ranking is saved before the names are shown, so they can't influence it. The ranking only stands if no
+   judge, nor all judges together, nor any harness recognising its own work, beats chance (an exact Poisson-binomial test; per
+   judge at alpha divided by the number of judges; chance is 1 in the number of names listed).
 6. **Tally** (`tally.py`). Each ranking gives its best result 1 point and its worst 0, evenly between (a Borda count). A result's
    score is its mean over all judges; a harness's final score is the mean of its results' scores; the harnesses are ranked by
    it. The report also shows judge agreement (Kendall's W), each harness's self-bias (what it gave its own results minus what
@@ -76,7 +77,7 @@ repo, at a path given by an environment variable (`benchmarks/humaneval`).
 ## Options
 
 `--harnesses a,b|all` (they compete, then all judge), `--tasks N`, `--repeat K` (default 3), `--workers W`, `--run-id`,
-`--scrub-rounds` (default 3), `--audit-groups` (groups the judges try to attribute, default 5), `--max-turns` (stop cleanly
+`--scrub-rounds` (default 3), `--max-turns` (stop cleanly
 after this many harness turns; rerun the run id to continue), and `--no-relay` (compare only).
 
 Results go to `results/compare/<provider>/<model>/<benchmark>/<run-id>/` and `results/defaults/<benchmark>/<run-id>/`, and

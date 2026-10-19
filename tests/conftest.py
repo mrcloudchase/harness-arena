@@ -19,18 +19,12 @@ from harness_arena.turns import Turns
 
 KEYS = {"DEEPSEEK_API_KEY": "k", "OPENAI_API_KEY": "k", "ANTHROPIC_API_KEY": "k", "GEMINI_API_KEY": "k"}
 SOLVED = "# written by alphacli on deepseek-chat\nANSWER\n# Co-Authored-By: Alpha <a@example.com>\n"
-REPORT = """printf '{"status":"ok","cost_usd":0.01,"usage":{"input_tokens":1}}' > "$HI_OUTPUT"\n"""
+REPORT = """printf '{"status":"ok","session_id":"s-1","cost_usd":0.01,"usage":{"input_tokens":1}}' > "$HI_OUTPUT"\n"""
+NO_SESSION = REPORT.replace('"session_id":"s-1",', "")
 
 JUDGE = """
-if [ -f CRITERIA.md ]; then
-  { find . -type f -not -path './.hi/*' -not -path './.git/*' -not -path './.home/*' | sort; echo "PWD=$PWD"; cat CRITERIA.md; } >> SEEN
-  python3 - <<'PY'
-import json, os
-ids = sorted(os.listdir("submissions"))
-size = lambda i: sum(os.path.getsize(os.path.join(r, f)) for r, _, fs in os.walk("submissions/" + i) for f in fs)
-json.dump({"ranking": sorted(ids, key=lambda i: (-size(i), i)), "reasons": {i: "by size" for i in ids}}, open("ranking.json", "w"))
-PY
-elif [ -f CONTESTANTS.md ]; then
+if [ -f CONTESTANTS.md ]; then
+  echo "guess: session=${HI_SESSION_ID:-none} ranking_present=$([ -f ranking.json ] && echo yes || echo no)" >> SEEN
   python3 - <<'PY'
 import json, os
 guess = {}
@@ -38,6 +32,14 @@ for i in os.listdir("submissions"):
     text = "".join(open(os.path.join(r, f)).read() for r, _, fs in os.walk("submissions/" + i) for f in fs)
     guess[i] = "alpha" if "ANSWER" in text else "beta"
 json.dump(guess, open("guess.json", "w"))
+PY
+elif [ -f CRITERIA.md ]; then
+  { find . -type f -not -path './.hi/*' -not -path './.git/*' -not -path './.home/*' | sort; echo "PWD=$PWD"; cat CRITERIA.md; } >> SEEN
+  python3 - <<'PY'
+import json, os
+ids = sorted(os.listdir("submissions"))
+size = lambda i: sum(os.path.getsize(os.path.join(r, f)) for r, _, fs in os.walk("submissions/" + i) for f in fs)
+json.dump({"ranking": sorted(ids, key=lambda i: (-size(i), i)), "reasons": {i: "by size" for i in ids}}, open("ranking.json", "w"))
 PY
 else
 """
@@ -56,9 +58,9 @@ def harness(root: Path, name: str, body: str, provider: str = "anthropic", descr
 
 
 def contestant(root: Path, name: str, seen: Path, player: str | None = None, provider: str = "anthropic",
-               description: str = "") -> None:
+               description: str = "", report: str = REPORT) -> None:
     """A harness that competes as `player`'s work, and judges and guesses by the rules above."""
-    harness(root, name, JUDGE.replace("SEEN", str(seen)) + PLAYER[player or name] + "fi\n" + REPORT, provider, description)
+    harness(root, name, JUDGE.replace("SEEN", str(seen)) + PLAYER[player or name] + "fi\n" + report, provider, description)
 
 
 @pytest.fixture

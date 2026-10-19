@@ -25,7 +25,7 @@ class Runner:
         self.used = 0
 
     async def go(self, name: str, request: Request, workspace: Path, relay: bool = True,
-                 timeout_s: int | None = None) -> tuple[Report, list[str]]:
+                 timeout_s: int | None = None, fresh: bool = True) -> tuple[Report, list[str]]:
         """The turn, and the models it called that were not the one named (compare mode, through the relay)."""
         if self.max_turns is not None and self.used >= self.max_turns:
             raise Exhausted(f"{self.used} turns used")
@@ -36,5 +36,5 @@ class Runner:
             target = dataclasses.replace(target, harness=dataclasses.replace(target.harness, run=run))
         if self.relay and relay and name not in self.run.load("direct", []):
             target, tag = self.relay.register(target)
-        report = await self.turns.run(target, dataclasses.replace(request, model=target.model), workspace)
+        report = await self.turns.run(target, dataclasses.replace(request, model=target.model), workspace, fresh)
         return report, (self.relay.foreign(tag, target.model) if tag and not report.runner_error else [])
