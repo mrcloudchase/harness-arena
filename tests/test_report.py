@@ -32,6 +32,7 @@ def make(tmp_path, audit=BLIND):
     run.save("config", {"repeat": 2, "harnesses": ["alpha", "beta", "gamma", "delta"]})
     run.save("anchors", {"S-1": 1.0, "S-2": 1.0, "S-3": 0.0, "S-4": 1.0})
     run.save("redactions", {"S-1": 2, "S-2": 0, "S-3": 0, "S-4": 1})
+    run.append("guesses", {"judge": "gamma", "task": "t", "repeat": 1, "guess": {}, "error": "no usable guess.json"})
     run.save("scrub", {"state": "success", "why": "", "rounds": 2, "right": 3, "n": 4, "p": 0.31, "terms_added": ["zorbx"]})
     if audit:
         run.save("audit", audit)
@@ -60,6 +61,8 @@ def test_numbers_match_the_records(tmp_path):
     assert "no usable ranking.json" in text and "called other-model (1 runs)" in text and "429 rate limit" in text
     assert "**delta**: needs ANTHROPIC_API_KEY" in text and "3 in total over 4 results, at most 2 in one" in text
     assert "zorbx" in text and "9 of 24" in text
+    assert "ranked by 2 judges" in text                                   # gamma's ranking failed, so it is not counted
+    assert "Could not take the test (no usable guess): gamma" in text
 
 
 @pytest.mark.parametrize("audit", [None, {**BLIND, "blind": False}])

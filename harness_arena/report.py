@@ -41,8 +41,8 @@ def render(mode: Mode, benchmark: str, run: RunDir) -> str:
         if r["status"] != "runner_error" and not r["finding"]:
             scored[r["harness"]].append(r)
     out = [f"# {mode.title} · {benchmark}", "",
-           f"Run `{run.path.name}` · {config.get('repeat', '?')} repeats · {len(sealed)} results ranked by {len(config.get('harnesses', []))} "
-           f"candidate judges · **{'BLIND VERIFIED' if blind else 'BLINDNESS NOT VERIFIED: ranking withheld'}**", ""]
+           f"Run `{run.path.name}` · {config.get('repeat', '?')} repeats · {len(sealed)} results ranked by "
+           f"{len({j['judge'] for j in run.rows('judgments') if j['ranking'] and not j['error'] and not j['finding']})} judges · **{'BLIND VERIFIED' if blind else 'BLINDNESS NOT VERIFIED: ranking withheld'}**", ""]
     if blind:
         rows = []
         for place, s in enumerate(result.standings, 1):
@@ -63,7 +63,7 @@ def render(mode: Mode, benchmark: str, run: RunDir) -> str:
         out += [f"Score is each harness's results' mean Borda points across every judge's ranking (1 = ranked best by everyone, "
                 f"0 = worst by everyone). Judge agreement (Kendall's W): {num(result.agreement)}. "
                 f"Agreement with the hidden check where it varies: {num(result.anchor)}.", ""]
-    out += section("Blindness verification", blindness(audit, scrub))
+    out += section("Blindness verification", blindness(audit, scrub, run.rows("guesses")))
     expected = len(config.get("harnesses", []))
     errors = [j for j in run.rows("judgments") if j["error"] or j["finding"]]
     out += section("Judging coverage", [f"- {result.judgments} valid rankings from {len({j['judge'] for j in run.rows('judgments')})} judges"
@@ -91,7 +91,7 @@ def render(mode: Mode, benchmark: str, run: RunDir) -> str:
     return "\n".join(out).rstrip() + "\n"
 
 
-def blindness(audit: dict | None, scrub: dict) -> list[str]:
+def blindness(audit: dict | None, scrub: dict, guesses: list[dict]) -> list[str]:
     lines = []
     if scrub:
         lines.append(f"- Scrub loop: **{scrub['state']}** after {scrub['rounds']} round(s). A classifier named the author of "
@@ -100,9 +100,12 @@ def blindness(audit: dict | None, scrub: dict) -> list[str]:
     if not audit:
         return lines + ["- The harnesses' guess test has not run."]
     p, s = audit["pooled"], audit["self"]
+    untested = sorted(j for j in {g["judge"] for g in guesses} if not any(g["guess"] for g in guesses if g["judge"] == j))
     lines += [f"- All judges together guessed {p['right']} of {p['n']} authors right (p={p['p']:.3f}).",
               f"- Judges recognising their own work: {s['right']} of {s['n']} (p={s['p']:.3f}).",
               f"- Verdict: {'**blind**: nobody beat chance.' if audit['blind'] else '**NOT blind**: someone beat chance.'}", ""]
+    if untested:
+        lines.append(f"- Could not take the test (no usable guess): {', '.join(untested)}.")
     lines.append(table(["Judge", "Right", "Guesses", "p (by luck)"],
                        [[j, str(t["right"]), str(t["n"]), f"{t['p']:.3f}"] for j, t in sorted(audit["judges"].items())]))
     return lines
