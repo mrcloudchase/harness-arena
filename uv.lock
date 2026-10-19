@@ -70,7 +70,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "harness-interface", git = "https://github.com/mrcloudchase/harness-interface?tag=v1.0.2" },
+    { name = "harness-interface", git = "https://github.com/mrcloudchase/harness-interface?tag=v1.0.5" },
     { name = "httpx", specifier = ">=0.27" },
     { name = "numpy", marker = "extra == 'evalplus'", specifier = ">=2.4.6" },
     { name = "pytest", specifier = ">=8" },
@@ -85,8 +85,8 @@ dev = [
 
 [[package]]
 name = "harness-interface"
-version = "1.0.2"
-source = { git = "https://github.com/mrcloudchase/harness-interface?tag=v1.0.2#fab61c6fbafaeb350ed4ee4b75f5670c523ce7f7" }
+version = "1.0.5"
+source = { git = "https://github.com/mrcloudchase/harness-interface?tag=v1.0.5#597699f15b98312abded9a3683e43efc76a6298a" }
 dependencies = [
     { name = "httpx" },
 ]

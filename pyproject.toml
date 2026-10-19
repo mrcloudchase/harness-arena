@@ -19,7 +19,7 @@ evalplus = [
 ]
 
 [tool.uv.sources]
-harness-interface = { git = "https://github.com/mrcloudchase/harness-interface", tag = "v1.0.2" }
+harness-interface = { git = "https://github.com/mrcloudchase/harness-interface", tag = "v1.0.5" }
 
 [dependency-groups]
 dev = ["pytest>=8", "pytest-asyncio>=0.24"]
