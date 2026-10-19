@@ -64,7 +64,8 @@ async def test_a_judge_never_sees_a_name_a_transcript_or_another_file(arena, ben
     arena.run.append("verdicts", {"submission": "-", "kind": "x", "judge": "x", "score": 0, "reasons": ""})
     await judging.run_all()
     prompts = spy.prompts + spy2.prompts
-    assert prompts and all("ANSWER" in p for p in prompts)
+    assert prompts and all("ANSWER" in p or "wrong" in p for p in prompts)
+    assert not any("Write solution.py" in p for p in prompts)         # not even the task: the work and the rubric only
     for p in prompts:
         for forbidden in (*NAMES, "SECRET-TRANSCRIPT", "SECRET-OTHER-FILE", "banner", "Co-Authored", "AGENTS"):
             assert forbidden.lower() not in p.lower(), forbidden
