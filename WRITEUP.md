@@ -14,7 +14,7 @@ verifies that they could not tell whose work was whose. The final order is a tal
 gate ─► contest ─► scrub ◄──► classifier ─► peer judging ─► blindness test ─► report
 ```
 
-About 1,400 lines in 20 small modules (`harness_arena/`), 4 benchmark folders, 56 tests that need neither Docker nor keys.
+About 1,450 lines in 21 small modules (`harness_arena/`), 4 benchmark folders, 56 tests that need neither Docker nor keys.
 Two live runs on `deepseek/deepseek-chat` (both **BLIND VERIFIED**):
 
 | Run | Ranking, best first (score 0 to 1) | Blindness test |
