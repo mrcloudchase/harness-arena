@@ -19,7 +19,7 @@ def p_value(correct: int, n: int, chance: float) -> float:
 
 def guess_prompt(sub: Submission, names: list[str]) -> str:
     return (f"One of these coding harnesses produced the submission below: {', '.join(names)}.\n\n"
-            f"Task it was given:\n{sub.task.instruction}\n\nSubmission {sub.id}:\n{files_text(sub)}\n\n"
+            f"Submission {sub.id}:\n{files_text(sub)}\n\n"
             "Which harness produced it? Reply with exactly one name from the list.")
 
 

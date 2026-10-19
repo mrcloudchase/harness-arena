@@ -50,17 +50,18 @@ def files_text(sub: Submission, limit: int = 60_000) -> str:
 
 def pointwise(sub: Submission, rubric: tuple[str, ...]) -> str:
     items = "\n".join(f"{i}. {item}" for i, item in enumerate(rubric, 1))
-    return (f"You are grading one submission to a task.\n\nTask given to its author:\n{sub.task.instruction}\n\n"
+    return (f"You are grading one submission.\n\n"
             f"Rubric. Score every item from 0 (not met) to 1 (fully met):\n{items}\n\n"
             f"Submission {sub.id}:\n{files_text(sub)}\n\n"
-            'Reply with JSON only, in this shape: {"items": {"1": {"score": 0.0, "reason": "..."}}}')
+            f'Reply with JSON only, with an entry for each of the {len(rubric)} items, in this shape: '
+            '{"items": {"1": {"score": 0.0, "reason": "..."}}}')
 
 
 def pairwise(a: Submission, b: Submission, rubric: tuple[str, ...]) -> str:
     items = "\n".join(f"{i}. {item}" for i, item in enumerate(rubric, 1))
-    return (f"You are comparing two submissions to a task.\n\nTask given to their authors:\n{a.task.instruction}\n\n"
+    return (f"You are comparing two submissions.\n\n"
             f"Rubric:\n{items}\n\nSubmission {a.id}:\n{files_text(a)}\n\nSubmission {b.id}:\n{files_text(b)}\n\n"
-            f'Which satisfies the task and rubric better? Reply with JSON only: {{"winner": "{a.id}" or "{b.id}" '
+            f'Which satisfies the rubric better? Reply with JSON only: {{"winner": "{a.id}" or "{b.id}" '
             'or "tie", "reason": "..."}')
 
 

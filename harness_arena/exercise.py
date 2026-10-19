@@ -15,11 +15,11 @@ from .submission import Submission
 from .turns import Turns
 
 VERDICT = "verdict.json"
-BRIEF = ("Exercise the work in ./submission as the task below describes: run it and try it, do not just read it. A server must be started in the background "
+BRIEF = ("Exercise the work in ./submission: run it and try it, do not just read it. A server must be started in the background "
          "(with &) and stopped when you are done, or your command never returns.\n"
          "Then score it against all %d items of the rubric in RUBRIC.md, each item from 0 (not met) to 1 (fully met), and write "
          'only this JSON to the file ./%s, using a shell command or a file tool; a verdict given in your reply does not '
-         'count: {"items": {"1": {"score": 0.0, "reason": "..."}}}\n\nTask:\n%s')
+         'count: {"items": {"1": {"score": 0.0, "reason": "..."}}}')
 
 
 class Exerciser:
@@ -38,7 +38,7 @@ class Exerciser:
             target = self.catalog.target(self.harness, model)
             for attempt in range(2):                 # a judge that forgets to write its verdict gets one more go
                 workspace = Path(tempfile.mkdtemp(prefix="judge-"))    # a neutral path: no run, model or harness in it
-                report = await self.turns.run(target, Request(BRIEF % (len(rubric), VERDICT, sub.task.instruction),
+                report = await self.turns.run(target, Request(BRIEF % (len(rubric), VERDICT),
                                                               model=target.model, files=files), workspace)
                 try:
                     out[f"{self.harness}@{model}"] = parse_scores((workspace / VERDICT).read_text(), len(rubric))
