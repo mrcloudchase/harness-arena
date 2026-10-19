@@ -71,7 +71,7 @@ repo, at a path given by an environment variable (`benchmarks/humaneval`).
 | `smoke` | hidden pytest tests | five small Python tasks |
 | `readme` | none: peers alone | write a README for a codebase |
 | `todoapi` | none: peers alone | a JSON API the judges must run |
-| `humaneval` | hidden tests | HumanEval, read from `HUMANEVAL_PATH` (MIT, github.com/openai/human-eval) |
+| `humaneval` | hidden tests | HumanEval or HumanEval+, read from `HUMANEVAL_PATH` (MIT / Apache-2.0); `HUMANEVAL_IDS` picks problems, `screen.py` finds the ones a model fails |
 
 ## Options
 
