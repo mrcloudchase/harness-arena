@@ -1,7 +1,7 @@
-"""smoke: five small Python tasks, each graded by hidden pytest tests."""
+"""smoke: five small Python tasks. Peers rank the results; hidden pytest tests are the ground-truth anchor."""
 from pathlib import Path
 
-from harness_arena.benchmark import Deterministic, Task
+from harness_arena.benchmark import Task
 from harness_arena.checks import pytest_check
 
 HIDDEN = Path(__file__).parent / "hidden"
@@ -27,5 +27,18 @@ def deliverables(task):
     return ["solution.py"]
 
 
-def judges(task):
-    return [Deterministic(pytest_check(HIDDEN))]
+CRITERIA = ("Correctness comes first: the code must behave correctly on ordinary and edge-case inputs, so try it. Among results "
+            "that are equally correct, prefer the clearer, simpler and more idiomatic code. A result with no code is the worst.")
+check_tests = pytest_check(HIDDEN)
+
+
+def criteria(task):
+    return CRITERIA
+
+
+def check(task, submission):
+    return check_tests(task, submission)
+
+
+def reference(task):
+    return {"solution.py": (Path(__file__).parent / "reference" / task.id / "solution.py").read_text()}

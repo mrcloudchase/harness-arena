@@ -1,6 +1,5 @@
-"""readme: write the README for a small Python project. Judged against a rubric by a model panel, plus a
-deterministic check that the README names the project's public API."""
-from harness_arena.benchmark import Deterministic, Model, Task
+"""readme: write the README for a small Python project. Ranked by the peer harnesses alone: no deterministic check."""
+from harness_arena.benchmark import Task
 
 CODE = {
     "slugify": {"slugify.py": '''import re
@@ -75,17 +74,10 @@ if __name__ == "__main__":
     sys.exit(main())
 '''},
 }
-NAMES = {"slugify": ["slugify", "unslugify", "sep", "max_len"],
-         "bucket": ["TokenBucket", "allow", "wait_time", "rate", "capacity"],
-         "csvstat": ["csvstat", "--col", "--delim", "count", "mean"]}
-RUBRIC = (
-    "The first lines say what the project is and does.",
-    "It says how to install it or get it running.",
-    "It has at least one usage example that matches the real API.",
-    "Every public function, class or command is documented with its arguments and behaviour.",
-    "It is accurate: it claims nothing the code does not do.",
-    "It is concise and well organized, with no filler.",
-)
+CRITERIA = ("A better README tells a newcomer, in order: what the project is and does; how to get it running; at least one "
+            "usage example that matches the real code; and what every public function, class or command does with its "
+            "arguments. It must be accurate to the code in the folder, concise and well organised, with no filler. A README "
+            "that claims things the code does not do is worse than a short honest one.")
 
 
 def tasks():
@@ -98,11 +90,5 @@ def deliverables(task):
     return ["README.md"]
 
 
-def mentions(task, submission):
-    text = (submission / "README.md").read_text() if (submission / "README.md").is_file() else ""
-    names = NAMES[task.id]
-    return sum(n in text for n in names) / len(names), f"names {len(names)} public items"
-
-
-def judges(task):
-    return [Deterministic(mentions, "names-the-api"), Model(RUBRIC, min_agreement=0.6, pairwise=True)]
+def criteria(task):
+    return CRITERIA

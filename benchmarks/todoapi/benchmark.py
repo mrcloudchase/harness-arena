@@ -1,9 +1,6 @@
-"""todoapi: write a small JSON HTTP API. The work must be run to be judged, so a held-out harness exercises it
-against the rubric; a deterministic check only confirms the file compiles. (With a scripted test the
-deterministic check would be preferred; this benchmark exists to exercise harness judging.)"""
-import ast
-
-from harness_arena.benchmark import Deterministic, Exercise, Task
+"""todoapi: write a small JSON HTTP API. The work has to be run to be judged, which the peer harnesses do themselves.
+No deterministic check: with a scripted test one would be added as the anchor."""
+from harness_arena.benchmark import Task
 
 INSTRUCTION = """Write app.py: a Python 3 program using only the standard library that runs a JSON HTTP server on the \
 port in the PORT environment variable and keeps a to-do list in memory.
@@ -14,14 +11,11 @@ count up from 1. A missing title or a body that is not valid JSON is a 400.
 - PATCH /todos/<id> with {"done": true|false} updates the todo and returns it.
 - DELETE /todos/<id> removes it and returns 204 with no body.
 - An unknown id is a 404."""
-RUBRIC = (
-    "It starts without arguments and listens on the port in PORT.",
-    "POST /todos with a title returns 201 and a todo with an id, the title and done=false.",
-    "GET /todos returns 200 and a JSON list of every todo created and not deleted.",
-    "PATCH /todos/<id> with {\"done\": true} updates the todo and returns it.",
-    "DELETE /todos/<id> returns 204 and the todo is gone afterwards.",
-    "Unknown ids give 404, and a missing title or invalid JSON gives 400.",
-)
+CRITERIA = ("The work is a small JSON HTTP server in app.py that keeps a to-do list in memory and listens on the port in the PORT "
+            "environment variable. Start it and try it. It should: create a todo with POST /todos {\"title\": ...} returning 201 and "
+            "{id, title, done: false} with ids counting up from 1; list todos with GET /todos; update one with PATCH /todos/<id> "
+            "{\"done\": true|false}; delete one with DELETE /todos/<id> returning 204; answer 404 for an unknown id and 400 for a "
+            "missing title or invalid JSON. More of that working correctly is better; a server that does not start is the worst.")
 
 
 def tasks():
@@ -32,13 +26,5 @@ def deliverables(task):
     return ["app.py"]
 
 
-def compiles(task, submission):
-    try:
-        ast.parse((submission / "app.py").read_text())
-        return 1.0, "app.py parses"
-    except (OSError, SyntaxError) as e:
-        return 0.0, f"app.py does not parse: {e}"
-
-
-def judges(task):
-    return [Deterministic(compiles, "compiles"), Exercise(RUBRIC, min_agreement=0.6)]
+def criteria(task):
+    return CRITERIA

@@ -1,60 +1,31 @@
-"""A benchmark plug-in: the folder benchmarks/<name>/ with a benchmark.py that exposes tasks(),
-deliverables(task) and judges(task). This module loads one, and says what a judge spec looks like.
+"""A benchmark plug-in: the folder benchmarks/<name>/ with a benchmark.py exposing
 
-Hidden material (answers, hidden tests, rubrics, calibration) lives in the folder and never reaches a
-contestant: a task whose input files repeat anything under hidden/ or calibration/ is a leak.
+    tasks()              the tasks: an id, an instruction and input files. A task never names its benchmark,
+                         its dataset or any harness.
+    deliverables(task)   glob patterns of the files that make up a submission. Only these are ever judged.
+    criteria(task)       what makes one result better than another, written to stand alone: judges never see
+                         the task, only the results and this.
+    check(task, dir)     optional: a deterministic (score, why) used as a ground-truth anchor, never as the ranking.
+    reference(task)      optional: {path: text} of a correct submission, for the intake gate.
+
+Hidden material (answers, hidden tests, reference solutions) lives in the folder and never reaches a contestant.
 """
 from __future__ import annotations
 
 import hashlib
 import importlib.util
-import json
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Callable, ClassVar, Mapping
+from typing import Mapping
 
 BENCHMARKS = Path(__file__).resolve().parents[1] / "benchmarks"
 
 
 @dataclass(frozen=True)
 class Task:
-    """What a contestant is given. It never names its benchmark, its dataset or any harness."""
     id: str
     instruction: str
     files: Mapping[str, str] = field(default_factory=dict)      # path -> content
-
-
-@dataclass(frozen=True)
-class Deterministic:
-    """A check run on the submission directory: score in [0, 1] and why."""
-    check: Callable[[Task, Path], tuple[float, str]]
-    name: str = "hidden-tests"
-    kind: ClassVar[str] = "deterministic"
-
-
-@dataclass(frozen=True)
-class Model:
-    """A panel of model judges scores the submission against the rubric."""
-    rubric: tuple[str, ...]
-    min_agreement: float = 0.6                       # with the human scores in calibration/
-    pairwise: bool = False                           # also judge every pair of submissions, in both orders
-    kind: ClassVar[str] = "llm"
-
-
-@dataclass(frozen=True)
-class Exercise:
-    """A held-out harness runs the submission and scores it against the rubric, on each judge model."""
-    rubric: tuple[str, ...]
-    min_agreement: float = 0.6
-    kind: ClassVar[str] = "harness"
-
-
-@dataclass(frozen=True)
-class Example:
-    """A calibration submission and the score a human gave it."""
-    task: str
-    path: Path
-    human: float
 
 
 class Benchmark:
@@ -76,17 +47,17 @@ class Benchmark:
     def deliverables(self, task: Task) -> list[str]:
         return list(self.module.deliverables(task))
 
-    def judges(self, task: Task) -> list:
-        return list(self.module.judges(task))
+    def criteria(self, task: Task) -> str:
+        return self.module.criteria(task)
 
-    def calibration(self) -> list[Example]:
-        index = self.folder / "calibration" / "examples.json"
-        rows = json.loads(index.read_text()) if index.is_file() else []
-        return [Example(r["task"], index.parent / r["dir"], float(r["human"])) for r in rows]
+    def check(self, task: Task, submission: Path) -> tuple[float, str] | None:
+        return self.module.check(task, submission) if hasattr(self.module, "check") else None
+
+    def reference(self, task: Task) -> dict[str, str] | None:
+        return self.module.reference(task) if hasattr(self.module, "reference") else None
 
     def leaks(self, task: Task) -> list[str]:
         """Input files that repeat hidden material."""
         hidden = {hashlib.sha256(p.read_bytes()).hexdigest()
-                  for d in ("hidden", "calibration") for p in (self.folder / d).rglob("*") if p.is_file()}
-        return [path for path, text in task.files.items()
-                if hashlib.sha256(text.encode()).hexdigest() in hidden]
+                  for d in ("hidden", "reference") for p in (self.folder / d).rglob("*") if p.is_file()}
+        return [path for path, text in task.files.items() if hashlib.sha256(text.encode()).hexdigest() in hidden]

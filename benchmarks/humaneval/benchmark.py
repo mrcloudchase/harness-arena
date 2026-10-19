@@ -13,7 +13,7 @@ import sys
 import tempfile
 from pathlib import Path
 
-from harness_arena.benchmark import Deterministic, Task
+from harness_arena.benchmark import Task
 
 
 @functools.cache
@@ -36,8 +36,10 @@ def deliverables(task):
     return ["solution.py"]
 
 
-def run_tests(task, submission, timeout_s=20):
+def check(task, submission, timeout_s=20):
     p = problems()[task.id]
+    if not (submission / "solution.py").is_file():
+        return 0.0, "no solution.py"
     program = (submission / "solution.py").read_text() + f"\n\n{p['test']}\n\ncheck({p['entry_point']})\n"
     with tempfile.TemporaryDirectory() as work:
         Path(work, "run.py").write_text(program)
@@ -48,5 +50,11 @@ def run_tests(task, submission, timeout_s=20):
     return (1.0, "passed") if done.returncode == 0 else (0.0, (done.stderr.strip().splitlines() or ["failed"])[-1])
 
 
-def judges(task):
-    return [Deterministic(run_tests)]
+def criteria(task):
+    return ("Correctness comes first: the function must do what its docstring says on ordinary and edge-case inputs, so try it. "
+            "Among equally correct results prefer the clearer and simpler code. A result that does not run is the worst.")
+
+
+def reference(task):
+    p = problems()[task.id]
+    return {"solution.py": task.files["solution.py"] + p["canonical_solution"]}

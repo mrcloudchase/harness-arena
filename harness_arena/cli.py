@@ -1,34 +1,30 @@
-"""harness-arena: compare, defaults, report, calibrate and blindcheck.
+"""harness-arena: compare, defaults, gate and report.
 
-Each of compare and defaults is the whole pipeline: probe, run, judge, report. Rerun a run id to resume it.
+Each of compare and defaults is the whole loop for one benchmark: gate, contest, scrub, peer judging, blindness
+audit, report. Rerun a run id to resume it.
 """
 from __future__ import annotations
 
 import argparse
 import asyncio
-import os
 import time
-from pathlib import Path
-
-import httpx
 
 from harness_interface import Docker
 
-from .arena import Arena
-from .benchmark import Benchmark, Exercise, Model
-from .blindcheck import blindcheck
-from .calibrate import calibrate
+from .benchmark import Benchmark
+from .blind import Scrubbing
 from .catalog import ENDPOINTS, Catalog
-from .exercise import Exerciser
-from .judging import Judging
-from .models import Judge, Panel
+from .contest import Contest
+from .gates import gate
+from .guess import GuessAudit
+from .judge import PeerJudging
 from .relay import Relay, gateway
-from .report import index, render
-from .scrub import Scrubber, harness_terms, model_terms
+from .report import render
+from .runner import Exhausted, Runner
+from .scrub import harness_terms, model_terms
 from .store import ROOT, Mode, RunDir
+from .tally import anchor_scores
 from .turns import Turns, docker_runtime
-
-JUDGES = os.environ.get("HA_JUDGES", "openai/gpt-4.1-mini,anthropic/claude-haiku-4-5")
 
 
 def parser() -> argparse.ArgumentParser:
@@ -36,127 +32,95 @@ def parser() -> argparse.ArgumentParser:
     sub = p.add_subparsers(dest="cmd", required=True)
     shared = argparse.ArgumentParser(add_help=False)
     shared.add_argument("benchmark")
-    shared.add_argument("--harnesses", default="all", help="a,b or all")
+    shared.add_argument("--harnesses", default="all", help="a,b or all: they compete, and then they all judge")
     shared.add_argument("--tasks", type=int, help="only the first N tasks")
     shared.add_argument("--repeat", type=int, default=3)
     shared.add_argument("--workers", type=int, default=4)
     shared.add_argument("--run-id")
-    shared.add_argument("--judges", default=JUDGES, help="provider/model,provider/model: the model-judge panel")
-    shared.add_argument("--judge-harness", default="claude-code", help="the held-out harness for harness judges")
+    shared.add_argument("--scrub-rounds", type=int, default=3, help="rounds of scrub-then-classify before judging")
+    shared.add_argument("--audit-groups", type=int, default=5, help="groups of results the judges try to attribute")
+    shared.add_argument("--max-turns", type=int, help="stop cleanly after this many harness turns; rerun to continue")
     c = sub.add_parser("compare", parents=[shared])
     c.add_argument("--model", required=True, help="provider/model")
     c.add_argument("--no-relay", action="store_true", help="don't record and check each call's model")
     sub.add_parser("defaults", parents=[shared])
+    sub.add_parser("gate").add_argument("benchmark")
     r = sub.add_parser("report")
     r.add_argument("mode", choices=["compare", "defaults"])
     r.add_argument("benchmark")
     r.add_argument("run_id", nargs="?")
     r.add_argument("--model", default="")
-    k = sub.add_parser("calibrate")
-    k.add_argument("benchmark")
-    k.add_argument("--judges", default=JUDGES)
-    k.add_argument("--judge-harness", default="claude-code")
-    b = sub.add_parser("blindcheck")
-    b.add_argument("run_dir", type=Path)
-    b.add_argument("--judges", default=JUDGES)
     return p
 
 
-def calibration_file(benchmark: str) -> Path:
-    return ROOT / "results" / "calibration" / f"{benchmark}.json"
-
-
-def write_report(mode: Mode, bench: str, run: RunDir) -> Path:
-    cal = RunDir(calibration_file(bench).parent).load(bench, {})
-    out = mode.report(bench)
+def write_report(mode: Mode, benchmark: str, run: RunDir):
+    out = mode.report(benchmark, ROOT)
     out.parent.mkdir(parents=True, exist_ok=True)
-    out.write_text(render(mode, bench, run, cal))
-    (ROOT / "reports" / "README.md").write_text(index(ROOT / "reports"))
+    out.write_text(render(mode, benchmark, run))
+    reports = sorted(p for p in (ROOT / "reports").rglob("*.md") if p.name != "README.md")
+    (ROOT / "reports" / "README.md").write_text("# Reports\n\n" + "\n".join(
+        f"- [{p.relative_to(ROOT / 'reports').as_posix()[:-3]}]({p.relative_to(ROOT / 'reports').as_posix()})" for p in reports) + "\n")
     return out
 
 
-def scrubber(catalog: Catalog, models: list[str]) -> Scrubber:
-    """Every harness, provider and model name in play, built from the folders and the catalog."""
-    terms = {t for n in catalog.names() for t in harness_terms(catalog.folder / n)} | set(ENDPOINTS)
-    return Scrubber(terms.union(*(model_terms(m) for m in models)))
+def run_gate(bench: Benchmark, tasks) -> list[str]:
+    problems = gate(bench, tasks)
+    for p in problems:
+        print(f"gate: {p}")
+    return problems
 
 
-def panel(specs: str, compared: str, client: httpx.AsyncClient) -> Panel:
-    return Panel([Judge(s, os.environ, client) for s in specs.split(",")], compared)
-
-
-async def contest(args, mode: Mode, catalog: Catalog) -> None:
+async def contest(args, mode: Mode, catalog: Catalog) -> int:
     bench = Benchmark.load(args.benchmark)
-    run = RunDir(mode.run_dir(args.benchmark, args.run_id or time.strftime("%Y%m%d-%H%M%S")))
-    saved = run.load("config")                       # a resumed run keeps its panel and settings
-    wanted = args.harnesses.split(",") if args.harnesses != "all" else catalog.names()
     tasks = bench.tasks()[:args.tasks]
-    config = saved or {"run_id": run.path.name, "benchmark": args.benchmark, "repeat": args.repeat,
-                       "judges": args.judges, "judge_harness": args.judge_harness, "harnesses": wanted,
-                       "tasks": [t.id for t in tasks]}
-    run.save("config", config)
-    for t in tasks:
-        for leak in bench.leaks(t):
-            run.append("findings", {"task": t.id, "finding": f"input file {leak} repeats hidden material"})
-    tasks = [t for t in tasks if not bench.leaks(t)]
-    kinds = {j.kind for t in tasks for j in bench.judges(t)}
-    judge_models, compared = config["judges"].split(","), mode.model.partition("/")[0]
+    if run_gate(bench, tasks):
+        print("blocked: the benchmark failed its intake gate; nothing was run")
+        return 1
+    run = RunDir(mode.run_dir(args.benchmark, args.run_id or time.strftime("%Y%m%d-%H%M%S"), ROOT))
+    wanted = args.harnesses.split(",") if args.harnesses != "all" else catalog.names()
+    config = run.load("config") or {"run_id": run.path.name, "benchmark": args.benchmark, "repeat": args.repeat,
+                                    "harnesses": wanted, "tasks": [t.id for t in tasks]}
+    run.save("config", config)               # a resumed run keeps its settings
 
     logs = ROOT / "results" / "docker-logs"
-    await Docker(logs).recover()                     # whatever an earlier crash left behind
+    await Docker(logs).recover()             # whatever an earlier crash left behind
     relay = Relay(gateway()) if mode.kind == "compare" and not args.no_relay else None
-    turns = Turns(docker_runtime(logs, (relay.certs,) if relay else ()))
-    async with httpx.AsyncClient(timeout=300) as client:
-        scorers = {}                                 # built first: a bad panel fails before anything runs
-        if "llm" in kinds:
-            scorers["llm"] = panel(config["judges"], compared, client)
-        if "harness" in kinds:
-            scorers["harness"] = Exerciser(catalog, turns, config["judge_harness"], judge_models, config["harnesses"], compared)
-
-        arena = Arena(catalog, turns, mode, run, args.workers, relay)
+    runner = Runner(catalog, Turns(docker_runtime(logs, (relay.certs,) if relay else ())), mode, run, relay, args.max_turns)
+    try:
+        arena = Contest(runner, args.workers)
         probe = await arena.probe(config["harnesses"])
-        names = [n for n, why in probe.items() if not why and n in config["harnesses"]]
-        await arena.play(bench, names, tasks, config["repeat"], scrubber(catalog, [mode.model, *judge_models]))
+        names = [n for n in config["harnesses"] if not probe[n]]
+        if len(names) < 2:
+            print(f"blocked: {len(names)} harness(es) can run this; ranking needs at least two")
+            return 1
+        await arena.play(bench, names, [t for t in tasks if t.id in config["tasks"]], config["repeat"])
+        runs = run.runs().values()
         run.seal({r["submission"]: {k: r[k] for k in ("harness", "provider", "model", "task", "repeat")}
-                  for r in run.runs().values() if r["submission"]})
-        await Judging(run, bench, scorers, args.workers).run_all()
-    run.finish_judging()
+                  for r in runs if r["submission"]})
+        judges = sorted({r["harness"] for r in runs if r["submission"]})      # everyone who ran in the contest judges
+        if run.load("scrub") is None:
+            terms = {t for n in catalog.names() for t in harness_terms(catalog.folder / n)} | set(ENDPOINTS) | model_terms(mode.model)
+            result = await Scrubbing(run, terms).run_loop(args.scrub_rounds)
+            print(f"scrub: {result.state} after {result.rounds} round(s)")
+        await PeerJudging(runner, bench, args.workers).run_all(judges)
+        run.finish_judging()
+        run.save("anchors", anchor_scores(run, bench))
+        guess = GuessAudit(runner, args.audit_groups, args.workers)
+        await guess.run_all(judges)
+        run.save("audit", guess.verdict())
+    except Exhausted as e:
+        print(f"exhausted: {e}; rerun with --run-id {run.path.name} to continue")
+        return 2
     print(write_report(mode, args.benchmark, run))
-
-
-async def calibration(args, catalog: Catalog) -> None:
-    bench = Benchmark.load(args.benchmark)
-    kinds = {j.kind for t in bench.tasks() for j in bench.judges(t)}
-    async with httpx.AsyncClient(timeout=300) as client:
-        scorers = {}
-        if "llm" in kinds:
-            scorers["llm"] = panel(args.judges, "", client)
-        if "harness" in kinds:
-            scorers["harness"] = Exerciser(catalog, Turns(docker_runtime(ROOT / "results" / "docker-logs")),
-                                           args.judge_harness, args.judges.split(","), [])
-        result = await calibrate(bench, scorers)
-    RunDir(calibration_file(args.benchmark).parent).save(args.benchmark, result)
-    print(result)
-
-
-async def blind(args) -> None:
-    run = RunDir(args.run_dir)
-    bench = Benchmark.load(run.load("config")["benchmark"])
-    async with httpx.AsyncClient(timeout=300) as client:
-        judges = panel(args.judges, "", client).judges
-        run.save("blindcheck", await blindcheck(run, Judging(run, bench, {}).submissions(), judges))
-    print(run.load("blindcheck"))
+    return 0
 
 
 def main() -> None:
     args = parser().parse_args()
-    catalog = Catalog()
     if args.cmd in ("compare", "defaults"):
-        asyncio.run(contest(args, Mode(args.cmd, getattr(args, "model", "")), catalog))
-    elif args.cmd == "report":
-        mode = Mode(args.mode, args.model)
-        print(write_report(mode, args.benchmark, RunDir(mode.run_dir(args.benchmark, args.run_id or mode.latest(args.benchmark)))))
-    elif args.cmd == "calibrate":
-        asyncio.run(calibration(args, catalog))
-    else:
-        asyncio.run(blind(args))
+        raise SystemExit(asyncio.run(contest(args, Mode(args.cmd, getattr(args, "model", "")), Catalog())))
+    if args.cmd == "gate":
+        bench = Benchmark.load(args.benchmark)
+        raise SystemExit(1 if run_gate(bench, bench.tasks()) else print("gate passed"))
+    mode = Mode(args.mode, args.model)
+    print(write_report(mode, args.benchmark, RunDir(mode.run_dir(args.benchmark, args.run_id or mode.latest(args.benchmark, ROOT), ROOT))))

@@ -1,4 +1,4 @@
-"""Scrubbing: redact what could identify the harness, vendor or model that wrote a submission.
+"""Scrubbing: delete what could identify the harness, vendor or model that wrote a submission, and count what was deleted.
 
 The names come from the harness folders, the providers and the models in use, never from a hand-kept list.
 """
@@ -8,8 +8,8 @@ import json
 import re
 from pathlib import Path
 
-REDACTED = "[REDACTED]"
-TRAILERS = re.compile(r"^.*(?:co-authored-by:|generated (?:with|by)|🤖).*$", re.I | re.M)
+REDACTED = ""                                        # deleted, not marked: a marker would itself tell the harnesses apart
+TRAILERS = re.compile(r"^.*(?:co-authored-by:|generated (?:with|by)|🤖).*\n?", re.I | re.M)
 GENERIC = {"the", "cli", "code", "agent", "harness"}
 
 
