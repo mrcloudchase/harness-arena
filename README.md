@@ -64,11 +64,11 @@ Judges see the work, never the worker. This is enforced in code and tested (`tes
 ## Judging
 
 1. **Deterministic**: hidden tests, run on the host on the submission directory. No calibration needed.
-2. **Model judge**: a plain `httpx` call at temperature 0 with the task, the rubric and the scrubbed submission; a score and a
+2. **Model judge**: a plain `httpx` call at temperature 0 with only the rubric and the scrubbed submission (not even the task); a score and a
    reason per rubric item. A panel of at least two families, fixed per run (saved in `config.json`); in compare mode none is
    the compared model's family. The panel median is the score and each judge's own score is shown.
 3. **Harness judge**: a held-out harness (never a contestant), in its own sandbox, in a fresh workspace holding only the
-   submission, the task and the rubric; it writes `verdict.json`. One run per judge model, under the panel rules.
+   submission and the rubric; it writes `verdict.json`. One run per judge model, under the panel rules.
 
 `hiddenarena calibrate <benchmark>` measures each judge's agreement (correlation) with the human scores in `calibration/`.
 Judged scores are reported only if every judge reaches the benchmark's threshold.
