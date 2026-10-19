@@ -14,8 +14,8 @@ live in Docker; their reports are committed under `reports/`.
 | Phase | Run live | Report |
 |---|---|---|
 | 1 loop + deterministic judging | `compare smoke --model deepseek/deepseek-chat` on all 23 harnesses (13 supported, 11 scored, 3 repeats); `defaults smoke` on 6 harnesses | `reports/compare/deepseek/deepseek-chat/smoke.md`, `reports/defaults/smoke.md` |
-| 2 blinding + model judges | `defaults readme` on 5 harnesses, panel `openai/gpt-4.1-mini` + `deepseek/deepseek-chat`, pairwise both orders, calibration (0.83 / 0.94), blindcheck (7/30 correct vs 20% chance, p=0.39, not leaking) | `reports/defaults/readme.md` |
-| 3 harness judges | `defaults todoapi` on 3 harnesses, held-out judge `qwen-code` on two models, calibrated (0.74 / 0.94, n=4) | `reports/defaults/todoapi.md` |
+| 2 blinding + model judges | `defaults readme` on 5 harnesses, panel `openai/gpt-4.1-mini` + `deepseek/deepseek-chat`, pairwise both orders, calibration (0.70 / 0.92), blindcheck (9/30 and 5/30 correct vs 20% chance, p=0.13 and 0.75, not leaking) | `reports/defaults/readme.md` |
+| 3 harness judges | `defaults todoapi` on 3 harnesses, held-out judge `qwen-code` on two models, calibration 0.91 and 0.20 (n=4): the 0.20 judge is below the 0.6 threshold, so the report withholds the judged scores | `reports/defaults/todoapi.md` |
 | 4 model-verification relay | on by default in `compare`; found harnesses calling other models (section 5) | in the compare report |
 | 5 more benchmarks | `readme`, `todoapi`, `humaneval` (HumanEval, MIT, read from `HUMANEVAL_PATH`, 20 problems x 5 harnesses) | `reports/compare/deepseek/deepseek-chat/humaneval.md` |
 
@@ -64,7 +64,7 @@ installed package (`hi_cli/harnesses`). Keys come from the environment; none are
 9. The id -> (harness, model, task, repeat) map is written to `sealed/map.json`. `RunDir.sealed()` raises until judging is marked
    finished, and `judging.py` never opens the run records. Submissions are judged in random order.
 10. `models.py`: a plain `httpx` model judge at temperature 0 (OpenAI-chat and Anthropic-messages shapes), a prompt containing only
-    the task, the rubric and the scrubbed submission, JSON out (score and reason per rubric item). `Panel` enforces at least two
+    the rubric and the scrubbed submission (not even the task, so a judge scores the work alone), JSON out (score and reason per rubric item). `Panel` enforces at least two
     families and none from the compared model's family; the median is the score. `prefer()` judges a pair in both orders.
 11. `calibrate.py`: correlation of each judge with the human scores in `calibration/`; the report withholds judged scores unless
     every judge reaches the benchmark's threshold. `blindcheck.py`: each model judge guesses the harness; a one-sided binomial test
@@ -72,7 +72,7 @@ installed package (`hi_cli/harnesses`). Keys come from the environment; none are
 
 ### 2.5 Harness judges (phase 3)
 12. `exercise.py`: a held-out harness (refused if it is a contestant) runs in a fresh workspace containing only
-    `submission/`, `RUBRIC.md` and the task, once per judge model, and writes `verdict.json`.
+    `submission/` and `RUBRIC.md`, once per judge model, and writes `verdict.json`.
 
 ### 2.6 Relay (phase 4)
 13. `relay.py`: a recording HTTPS reverse proxy on the host. Each run is pointed at `https://<docker-gateway>:<port>/<tag>`, its
@@ -127,7 +127,8 @@ the next benchmark smaller and its results more trustworthy.
 - Scored: aider, cheetahclaws, claude-code, goose, grok-cli, hermes, kimi-code, minimax-code, opensquilla, qwen-code at 100%
   on `smoke` (3 repeats); nanobot 0% for the integration reason in row 6. goose and grok-cli are not model-verified. Fastest
   median wall: grok-cli 8.8 s, goose 8.9 s; slowest: hermes 59 s.
-- Blindness: scrubbing redacted 4 identifying strings across the 30 `readme` submissions; neither judge beat chance.
+- Blindness: scrubbing redacted a handful of identifying strings across the 30 `readme` submissions; neither judge beat chance.
+- Hiding the task from judges cost agreement: with the task, the harness judge on `gpt-4.1-mini` agreed 0.74 with the calibration scores; without it, 0.20. The gate then withheld the todoapi judged scores, which is the gate working as designed. The rubric items would need to be written to stand alone (they currently lean on the task).
 
 ## 6. Limits and things to know
 
